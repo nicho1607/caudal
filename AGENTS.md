@@ -36,3 +36,12 @@ Gestor de gastos personales. Next.js 16 (App Router) + React 19 + TypeScript str
 - Don't rely on Next's generated global types (`LayoutProps`, `PageProps`) — `tsc --noEmit` runs without `.next/types` on a clean checkout. Type props explicitly.
 - UI text is Spanish (`lang="es"`).
 - Never commit `.env`; `.env.example` documents `DATABASE_URL` / `DIRECT_URL`.
+
+## App shell (`src/components/shell/`, `src/app/(app)/layout.tsx`)
+
+- Every authenticated page lives under `src/app/(app)/` and gets the sidebar + topbar from its layout; `/` redirects to `/dashboard`. Nav items are defined once in `components/shell/nav-items.ts` (add new sections there).
+- The `(app)` layout calls `await connection()` (per-request data; never prerendered at build) and loads sidebar balances server-side.
+- Active month is the URL param `?month=YYYY-MM` (absent = current month), owned by `MonthSwitcher` via nuqs; read it with `useQueryState("month", parseAsString)`. Sidebar links preserve it.
+- Sidebar becomes a left `Sheet` below `md`; page content should stay single-column-safe at 375 px.
+- Page titles: `<h1>` 15/22 semibold inside the page (the topbar has no h1). `PagePlaceholder` is only for sections not yet built.
+- Dev gotcha: editing files with `sed -i` (replace-by-rename) on this OneDrive folder can leave the dev server's SSR bundle stale → bogus hydration mismatches. Edit in place (Edit tool) or restart `next dev`.

@@ -62,3 +62,16 @@
   - The server-only package is not installed; don't import it without adding the dependency.
   - handler()'s returned function types its second arg as { params?: Promise<unknown> } so it satisfies Next's route type check for static and dynamic routes; validate params with the params zod schema.
 ---
+
+## 2026-10-28 - SHELL-001
+- App shell: route group `src/app/(app)` with layout (sticky 256 px sidebar on md+, topbar, main max 1440 px). Sidebar: brand, nav (Resumen, Movimientos, Cuentas, Presupuestos, Metas, Ajustes; Lucide icons; aria-current + bg-sidebar-accent active state; focus-visible ring), "Tus cuentas" list with color dot + balance (`num`, formatMoney in account currency). Topbar: month switcher (`?month=YYYY-MM` via nuqs; next disabled on current month; short label below sm), inert search button with ⌘K kbd, theme toggle (next-themes, icons switched via `dark:` to avoid hydration mismatch), inert primary "Nueva" with N kbd. Below 768 px the sidebar is a left Sheet (closes on navigation). Placeholder pages for the six sections; `/` redirects to `/dashboard`.
+- Server: `src/server/services/account.service.ts` → `listAccountBalances(userId)` (findMany + transaction groupBy). Layout awaits `connection()` so it is always request-time.
+- Files: src/app/(app)/{layout.tsx,dashboard,transactions,accounts,budgets,goals,settings}/page.tsx, src/app/page.tsx, src/components/shell/{nav-items.ts,sidebar-content.tsx,mobile-nav.tsx,topbar.tsx,month-switcher.tsx,theme-toggle.tsx,page-placeholder.tsx}, src/server/services/account.service.ts, AGENTS.md, src/server/AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint (changed files), vitest (16); Chrome on the existing dev server :3123: light + dark desktop, 375 px (via 375 px iframe, the window could not be resized) with scrollWidth = 375, drawer opens/closes on navigation, keyboard Tab shows focus ring on nav, month param preserved across sections, no console errors after reload.
+- **Learnings for future iterations:**
+  - Claude in Chrome's resize_window had no effect (maximized window); test 375 px by injecting a 375 px same-origin iframe and measuring `contentDocument.documentElement.scrollWidth`.
+  - `sed -i` edits weren't picked up by the dev server's SSR bundle (client updated, server stale → hydration mismatch). Use in-place edits.
+  - es-ES Intl doesn't group 4-digit numbers ("5555,07 €"); that's CLDR's minimumGroupingDigits=2, not a bug in formatMoney.
+  - shadcn outline Button has `dark:bg-input/30`; overriding background on a breakpoint needs `max-sm:dark:bg-transparent` too.
+  - SheetContent's built-in close button has an English sr-only label; pass `showCloseButton={false}` and render a Spanish `SheetClose`.
+---

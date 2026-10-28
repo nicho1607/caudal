@@ -6,6 +6,7 @@
    ───────────────────────────────────────────────────────────────────────────── */
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "shadcn/tailwind.css"; /* variantes y keyframes que usan los componentes shadcn */
 
 @custom-variant dark (&:is(.dark *));
 
@@ -100,6 +101,7 @@
 @theme inline {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+  --font-heading: var(--font-sans);
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);

@@ -1,0 +1,24 @@
+## Codebase Patterns
+- Next.js 16.4 / React 19.3 / Tailwind v4 via `@tailwindcss/turbopack` loader in next.config.ts (no postcss config). Read `node_modules/next/dist/docs/` before using unfamiliar Next APIs.
+- shadcn style is `radix-nova` (radix-ui umbrella pkg, `cn` from the `cn` package in src/lib/utils.ts). Add components with `npx shadcn@latest add <name> -y < /dev/null`; ALWAYS diff src/app/globals.css afterwards — shadcn init overwrote the design tokens once.
+- Type layout/page props explicitly; Next's global `LayoutProps`/`PageProps` only exist after `next dev/build` typegen, so `tsc --noEmit` fails on a clean checkout.
+- Tests: Vitest + jsdom, files in `tests/unit/**/*.test.ts[x]` or colocated `src/**/*.test.ts[x]`; run one with `npx vitest run <path>`.
+- `postinstall` runs `prisma generate` (client in src/generated/prisma, gitignored).
+- Root layout already provides ThemeProvider (class), TooltipProvider and `<Toaster />` (sonner) — don't add them again in nested layouts.
+
+## 2026-10-28 - SETUP-001
+- Scaffolded Next.js 16.4.3 (App Router, src/, @/* alias, TS strict) via create-next-app in a temp dir and copied files in; existing docs/, prisma/, globals.css, lib/format.ts, features/dashboard/types.ts preserved.
+- shadcn/ui init (radix-nova) + 21 requested components (plus deps textarea, toggle, input-group). globals.css kept; only added `@import "shadcn/tailwind.css"` and `--font-heading`.
+- Installed all listed deps; @types/node bumped to ^22 (vitest 5 peer requirement, matches Node 22).
+- Root layout: Geist/Geist Mono, ThemeProvider (class, system default), TooltipProvider, Toaster, lang=es. Placeholder home page.
+- Scripts: dev, build, start, typecheck, lint, test, db:generate, db:migrate, db:seed, postinstall.
+- vitest.config.ts (jsdom, @ alias) + tests/unit/format.test.ts (5 tests).
+- Removed create-next-app defaults `cacheComponents`/`partialPrefetching` from next.config.ts to keep RSC/data fetching conventional for later stories (re-enable deliberately if wanted).
+- Files: package.json, package-lock.json, next.config.ts, tsconfig.json, eslint.config.mjs, components.json, vitest.config.ts, .gitignore, AGENTS.md, public/*, src/app/{layout,page}.tsx, favicon.ico, globals.css, src/components/{theme-provider.tsx,ui/*}, src/lib/utils.ts, tests/unit/format.test.ts
+- Verified: typecheck, lint, test, build pass; dev server renders / with no console errors (Chrome).
+- **Learnings for future iterations:**
+  - shadcn CLI needs `-b radix -p nova` and stdin closed to run non-interactively.
+  - `next dev` writes a nextjs-agent-rules block into AGENTS.md; keep it committed.
+  - Vitest prints a harmless "ESM syntax in a file loaded as CommonJS" warning for vitest.config.ts (package.json has no "type": "module"); tests still run.
+  - eslint ignores src/generated/**.
+---

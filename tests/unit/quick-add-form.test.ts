@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { matchTags, quickAddFormSchema, toCreateInput, type QuickAddFormValues } from "@/features/quick-add/form";
+import { matchTags, merchantNames, quickAddFormSchema, toCreateInput, type QuickAddFormValues } from "@/features/quick-add/form";
 
 const base: QuickAddFormValues = {
   type: "EXPENSE",
@@ -94,5 +94,18 @@ describe("matchTags", () => {
       ids: ["t1", "t2"],
       unknown: ["viaje"],
     });
+  });
+});
+
+describe("merchantNames", () => {
+  it("payees primero, luego comercios de reglas activas no REGEX, sin repetidos", () => {
+    const rules = [
+      { field: "PAYEE", match: "CONTAINS", pattern: "rappi", isActive: true },
+      { field: "PAYEE", match: "CONTAINS", pattern: "uber eats", isActive: true },
+      { field: "PAYEE", match: "REGEX", pattern: "^didi", isActive: true },
+      { field: "DESCRIPTION", match: "CONTAINS", pattern: "almuerzo", isActive: true },
+      { field: "PAYEE", match: "EQUALS", pattern: "netflix", isActive: false },
+    ];
+    expect(merchantNames([{ name: "Rappi" }, { name: "Éxito" }], rules)).toEqual(["Rappi", "Éxito", "Uber eats"]);
   });
 });

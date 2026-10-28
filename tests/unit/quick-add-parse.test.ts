@@ -28,6 +28,7 @@ describe("parseQuickAdd — ejemplos colombianos", () => {
       accountId: "cash",
       date: "2026-10-27",
       tags: [],
+      payee: null,
       description: "Almuerzo",
     });
   });
@@ -170,6 +171,7 @@ describe("cuentas", () => {
       accountId: "visa",
       date: "2026-10-27",
       tags: ["trabajo"],
+      payee: null,
       description: "Café",
     });
   });
@@ -188,7 +190,40 @@ describe("etiquetas y descripción", () => {
       accountId: null,
       date: null,
       tags: [],
+      payee: null,
       description: "",
     });
+  });
+});
+
+describe("comercio conocido al inicio", () => {
+  const merchants = ["Rappi", "Juan Valdez", "Éxito", "Uber", "Uber eats"];
+  const ctx: ParseContext = { ...cop, merchants };
+
+  it("rappi 45k tarjeta nu → Comercio Rappi (la descripción se mantiene)", () => {
+    expect(parseQuickAdd("rappi 45k tarjeta nu", ctx)).toMatchObject({
+      payee: "Rappi",
+      description: "Rappi",
+      amount: "45000",
+      accountId: "tc",
+    });
+  });
+
+  it("varias palabras, tildes y mayúsculas; gana el comercio más largo", () => {
+    expect(parseQuickAdd("JUAN VALDEZ tinto 9.000", ctx).payee).toBe("Juan Valdez");
+    expect(parseQuickAdd("exito mercado 120k", ctx).payee).toBe("Éxito");
+    expect(parseQuickAdd("uber eats 32.000", ctx).payee).toBe("Uber eats");
+    expect(parseQuickAdd("uber 18.000 ayer", ctx).payee).toBe("Uber");
+  });
+
+  it("sólo si el texto empieza por el comercio", () => {
+    expect(parseQuickAdd("almuerzo rappi 45k", ctx).payee).toBeNull();
+    expect(parseQuickAdd("rappitendero 10k", ctx).payee).toBeNull();
+    expect(parseQuickAdd("rappi 45k", cop).payee).toBeNull();
+  });
+
+  it("el importe o la fecha delante no impiden reconocerlo", () => {
+    expect(parseQuickAdd("45k rappi tarjeta nu", ctx).payee).toBe("Rappi");
+    expect(parseQuickAdd("ayer juan valdez 9000", ctx).payee).toBe("Juan Valdez");
   });
 });

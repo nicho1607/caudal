@@ -17,6 +17,11 @@ export interface ParseContext {
   /** Hoy en la zona horaria del usuario, yyyy-mm-dd. */
   today: string;
   accounts?: ParseAccount[];
+  /**
+   * Comercios conocidos (nombres de payee y comercios de reglas). Si las
+   * primeras palabras de la descripción coinciden con uno, se rellena `payee`.
+   */
+  merchants?: string[];
 }
 
 export interface ParsedQuickAdd {
@@ -30,6 +35,8 @@ export interface ParsedQuickAdd {
   /** yyyy-mm-dd; null = no se mencionó fecha. */
   date: string | null;
   tags: string[];
+  /** Comercio conocido con el que empieza la descripción ("Rappi"), con su nombre de display; null si no hay. */
+  payee: string | null;
   /** Lo que queda (descripción / comercio), con la primera letra en mayúscula. */
   description: string;
 }
@@ -218,6 +225,7 @@ export function parseQuickAdd(input: string, ctx: ParseContext): ParsedQuickAdd 
     accountId: null,
     date: null,
     tags: [],
+    payee: null,
     description: "",
   };
 
@@ -313,5 +321,28 @@ export function parseQuickAdd(input: string, ctx: ParseContext): ParsedQuickAdd 
     .replace(/\s+[,;.]+(?=\s|$)/g, "")
     .trim();
   result.description = rest ? rest.charAt(0).toLocaleUpperCase("es") + rest.slice(1) : "";
+  result.payee = leadingMerchant(
+    tokens.filter((t) => !t.used),
+    ctx.merchants ?? [],
+  );
   return result;
+}
+
+/** Palabras plegadas de un nombre de comercio ("Juan Valdez" → ["juan", "valdez"]). */
+const merchantWords = (name: string) => name.split(/\s+/).map(fold).filter(Boolean);
+
+/**
+ * Comercio conocido con el que empiezan las palabras restantes; gana el de más
+ * palabras y, a igualdad, el primero de la lista (los payees van antes que los
+ * comercios de reglas).
+ */
+function leadingMerchant(rest: Token[], merchants: string[]): string | null {
+  let best: { name: string; length: number } | null = null;
+  for (const name of merchants) {
+    const words = merchantWords(name);
+    if (words.length === 0 || words.length > rest.length) continue;
+    if (!words.every((w, i) => rest[i].folded === w)) continue;
+    if (!best || words.length > best.length) best = { name: name.trim(), length: words.length };
+  }
+  return best?.name ?? null;
 }

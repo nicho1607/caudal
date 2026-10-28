@@ -55,6 +55,32 @@ export function matchTags(names: string[], tags: { id: string; name: string }[])
   return { ids, unknown };
 }
 
+/**
+ * Comercios que el parser reconoce al inicio del texto: nombres de payee
+ * (display, "Juan Valdez") y, después, los patrones de reglas activas de
+ * comercio que no sean REGEX ("uber eats" → "Uber eats"), sin repetidos.
+ */
+export function merchantNames(
+  payees: { name: string }[],
+  rules: { field: string; match: string; pattern: string; isActive: boolean }[],
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  const add = (name: string) => {
+    const key = name.split(/\s+/).map(fold).filter(Boolean).join(" ");
+    if (!key || seen.has(key)) return;
+    seen.add(key);
+    out.push(name.trim());
+  };
+  payees.forEach((p) => add(p.name));
+  for (const rule of rules) {
+    if (!rule.isActive || rule.field !== "PAYEE" || rule.match === "REGEX") continue;
+    const pattern = rule.pattern.trim();
+    if (pattern) add(pattern.charAt(0).toLocaleUpperCase("es") + pattern.slice(1));
+  }
+  return out;
+}
+
 export interface ToCreateInputOptions {
   currency: string;
   /** El usuario eligió la categoría a mano (si no, el servidor auto-categoriza). */

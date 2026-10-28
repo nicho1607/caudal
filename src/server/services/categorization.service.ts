@@ -24,11 +24,11 @@ export type {
   SuggestionSource,
 } from "@/server/services/categorization.match";
 
-/** Carga reglas activas y payees con categoría del usuario. */
+/** Carga reglas activas y payees con categoría del usuario (nunca hacia categorías archivadas). */
 async function loadMatchData(userId: string) {
   const [rules, payees] = await Promise.all([
     db.categorizationRule.findMany({
-      where: { userId, isActive: true },
+      where: { userId, isActive: true, category: { archivedAt: null } },
       select: {
         id: true,
         categoryId: true,
@@ -41,7 +41,7 @@ async function loadMatchData(userId: string) {
       },
     }),
     db.payee.findMany({
-      where: { userId, defaultCategoryId: { not: null } },
+      where: { userId, defaultCategory: { archivedAt: null } },
       select: { id: true, normalizedName: true, defaultCategoryId: true },
     }),
   ]);

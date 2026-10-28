@@ -23,8 +23,10 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useAccounts } from "@/features/accounts/hooks/use-accounts";
 import type { AccountDTO } from "@/features/accounts/types";
 import { useCategories } from "@/features/categories/hooks/use-categories";
+import { useCategorizationRules, usePayees } from "@/features/categories/hooks/use-categorization-rules";
 import {
   matchTags,
+  merchantNames,
   quickAddFormSchema,
   toCreateInput,
   type QuickAddFormType,
@@ -132,6 +134,12 @@ function QuickAddForm({ initialType, draft, today, currency, locale, onSubmit }:
   const accounts = useMemo(() => accountsQuery.data ?? [], [accountsQuery.data]);
   const categories = categoriesQuery.data ?? [];
   const tags = useMemo(() => tagsQuery.data ?? [], [tagsQuery.data]);
+  const payeesQuery = usePayees();
+  const rulesQuery = useCategorizationRules();
+  const merchants = useMemo(
+    () => merchantNames(payeesQuery.data ?? [], rulesQuery.data ?? []),
+    [payeesQuery.data, rulesQuery.data],
+  );
 
   const defaultAccountId = useMemo(() => {
     const last = readLastAccount();
@@ -174,18 +182,25 @@ function QuickAddForm({ initialType, draft, today, currency, locale, onSubmit }:
   }, [defaultAccountId, getValues, setValue]);
 
   const parsed = useMemo(
-    () => parseQuickAdd(text, { currency, today, accounts }),
-    [text, currency, today, accounts],
+    () => parseQuickAdd(text, { currency, today, accounts, merchants }),
+    [text, currency, today, accounts, merchants],
   );
   const tagMatch = useMemo(() => matchTags(parsed.tags, tags), [parsed.tags, tags]);
 
+  // Los comercios pueden llegar después de empezar a escribir: completar Comercio igualmente.
+  useEffect(() => {
+    if (parsed.payee && !manual.current.has("payee") && !getValues("payee")) setValue("payee", parsed.payee);
+  }, [parsed.payee, getValues, setValue]);
+
   const applyParsed = (value: string) => {
-    const p = parseQuickAdd(value, { currency, today, accounts });
+    const p = parseQuickAdd(value, { currency, today, accounts, merchants });
     const set = (name: Field, v: string) => {
       if (!manual.current.has(name)) setValue(name, v, { shouldValidate: formState.isSubmitted });
     };
     set("amount", p.amount ?? "");
     set("description", p.description);
+    // Comercio conocido al inicio ("rappi 45k…") → también en Comercio, para que las correcciones aprendan.
+    set("payee", p.payee ?? "");
     set("date", p.date ?? today);
     set("accountId", p.accountId ?? defaultAccountId);
     // Sin pista en el texto se vuelve al tipo con el que se abrió (p. ej. "Nuevo ingreso").

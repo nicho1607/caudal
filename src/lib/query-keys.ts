@@ -26,6 +26,8 @@ export const queryKeys = {
   categories: {
     all: ["categories"] as const,
     list: () => ["categories", "list"] as const,
+    /** Ajustes: activas + archivadas (`?include=archived`). */
+    overview: () => ["categories", "overview"] as const,
   },
   tags: {
     all: ["tags"] as const,
@@ -48,5 +50,7 @@ export const queryKeys = {
     all: ["categorize"] as const,
     suggest: (input: { payee?: string; description?: string }) =>
       ["categorize", "suggest", input] as const,
+    /** Reglas de categorización (ajustes; Quick Add lee sus comercios). */
+    rules: () => ["categorize", "rules"] as const,
   },
 } as const;

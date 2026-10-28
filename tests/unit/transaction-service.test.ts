@@ -225,6 +225,30 @@ describe.skipIf(!hasDb)("transaction.service (DB)", async () => {
 
     const byTag = await svc.listTransactions(userA.id, { sort: "date", order: "desc", limit: 50, tagIds: [ids.tag] });
     expect(byTag.items.map((t) => t.amount)).toEqual(["-30500"]);
+
+    // `q` también busca en el nombre del payee (la descripción de este movimiento está vacía).
+    const byPayee = await svc.listTransactions(userA.id, { sort: "date", order: "desc", limit: 50, q: "andinas" });
+    expect(byPayee.items.map((t) => t.payee?.name)).toEqual(["Soluciones Andinas S.A.S."]);
+  });
+
+  it("collapses transfers to their origin leg and matches the account filter on either leg", async () => {
+    const base = { sort: "date" as const, order: "desc" as const, limit: 200, types: ["TRANSFER" as const] };
+    const both = await svc.listTransactions(userA.id, base);
+    expect(both.items).toHaveLength(2);
+
+    const collapsed = await svc.listTransactions(userA.id, { ...base, collapseTransfers: true });
+    expect(collapsed.items).toHaveLength(1);
+    expect(collapsed.items[0]).toMatchObject({ transfer: { direction: "out" }, account: { id: ids.checking } });
+
+    // Filtrar por la cuenta destino sigue mostrando la transferencia (por su pata de origen).
+    const byDestination = await svc.listTransactions(userA.id, {
+      ...base,
+      collapseTransfers: true,
+      accountIds: [ids.savings],
+    });
+    expect(byDestination.items.map((t) => t.id)).toEqual([collapsed.items[0].id]);
+    const uncollapsedDestination = await svc.listTransactions(userA.id, { ...base, accountIds: [ids.savings] });
+    expect(uncollapsedDestination.items[0].transfer?.direction).toBe("in");
   });
 
   it("scopes everything by userId: another user's ids behave as missing (404)", async () => {

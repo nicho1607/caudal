@@ -5,6 +5,7 @@ import type {
   DashboardData,
   RecentTransaction,
 } from "@/features/dashboard/types";
+import { cssColor } from "@/lib/color";
 import { db } from "@/server/db";
 import { NotFoundError } from "@/server/errors";
 import {
@@ -30,12 +31,6 @@ const SPARK_POINTS = 30;
 const VARIABLE_AVERAGE_DAYS = 90;
 const RECENT_LIMIT = 8;
 const UNCATEGORIZED = { id: "uncategorized", name: "Sin categoría", color: "var(--muted-foreground)" };
-
-/** Los colores de categoría se guardan como token (`chart-3`); el DTO devuelve CSS usable. */
-function cssColor(color: string | null | undefined): string | null {
-  if (!color) return null;
-  return /^chart-\d+$/.test(color) ? `var(--${color})` : color;
-}
 
 const num = (value: Prisma.Decimal | number | string | null | undefined) =>
   value == null ? 0 : Number(value);

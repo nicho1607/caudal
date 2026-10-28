@@ -164,7 +164,23 @@ export async function listTransactions(
 
   if (query.dateFrom) conds.push(Prisma.sql`t."date" >= ${query.dateFrom}::date`);
   if (query.dateTo) conds.push(Prisma.sql`t."date" <= ${query.dateTo}::date`);
-  if (query.accountIds?.length) conds.push(Prisma.sql`t."accountId" IN (${Prisma.join(query.accountIds)})`);
+  if (query.collapseTransfers) {
+    // Una fila por transferencia: sólo la pata de origen (importe negativo).
+    conds.push(Prisma.sql`NOT (t."transferGroupId" IS NOT NULL AND t."amount" > 0)`);
+  }
+  if (query.accountIds?.length) {
+    const ids = Prisma.join(query.accountIds);
+    conds.push(
+      query.collapseTransfers
+        ? // La pata visible es la de origen: la transferencia casa también por la cuenta destino.
+          Prisma.sql`(t."accountId" IN (${ids}) OR (t."transferGroupId" IS NOT NULL AND EXISTS (
+            SELECT 1 FROM "transactions" o
+            WHERE o."transferGroupId" = t."transferGroupId" AND o."id" <> t."id"
+              AND o."userId" = ${userId}::uuid AND o."accountId" IN (${ids})
+          )))`
+        : Prisma.sql`t."accountId" IN (${ids})`,
+    );
+  }
   if (query.categoryIds?.length) {
     // Una categoría padre incluye sus subcategorías (igual que los presupuestos).
     const ids = Prisma.join(query.categoryIds);
@@ -181,10 +197,20 @@ export async function listTransactions(
   }
   if (query.types?.length) conds.push(Prisma.sql`t."type"::text IN (${Prisma.join(query.types)})`);
   if (query.q) {
-    // Expresión idéntica a la del índice GIN (migración search_trgm_index).
-    conds.push(
-      Prisma.sql`(coalesce(t."description",'') || ' ' || coalesce(t."notes",'')) ILIKE ${`%${escapeLike(query.q)}%`}`,
-    );
+    // Descripción + notas con la expresión idéntica a la del índice GIN
+    // (migración search_trgm_index) O nombre del payee. Va como UNION de ids y
+    // no como OR en el WHERE para que la primera rama siga usando el índice
+    // trigram (un OR con una columna sin índice obliga a un filtro secuencial).
+    const pattern = `%${escapeLike(query.q)}%`;
+    conds.push(Prisma.sql`t."id" IN (
+      SELECT s."id" FROM "transactions" s
+      WHERE s."userId" = ${userId}::uuid
+        AND (coalesce(s."description",'') || ' ' || coalesce(s."notes",'')) ILIKE ${pattern}
+      UNION
+      SELECT s."id" FROM "transactions" s
+      JOIN "payees" p ON p."id" = s."payeeId"
+      WHERE s."userId" = ${userId}::uuid AND p."userId" = ${userId}::uuid AND p."name" ILIKE ${pattern}
+    )`);
   }
 
   const column = sort === "date" ? Prisma.sql`t."date"` : Prisma.sql`t."amount"`;

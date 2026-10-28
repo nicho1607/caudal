@@ -37,8 +37,8 @@ const AMOUNT_TONE: Record<RecentTransaction["type"], string> = {
 };
 
 function CategoryLabel({ t }: { t: RecentTransaction }) {
-  if (t.type === "TRANSFER") return <span className="text-muted-foreground">Transferencia</span>;
-  if (!t.categoryName) return <span className="text-muted-foreground">Sin categoría</span>;
+  if (t.type === "TRANSFER") return <span className="truncate text-muted-foreground">Transferencia</span>;
+  if (!t.categoryName) return <span className="truncate text-muted-foreground">Sin categoría</span>;
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5">
       <span
@@ -74,7 +74,8 @@ function RecentRow({
     <li data-transaction-id={t.id} className={cn(ROW_GRID, "border-b py-2 text-[13px] leading-5 last:border-b-0 sm:py-0")}>
       <span className="num hidden text-xs text-muted-foreground sm:block">{date}</span>
 
-      <div className="min-w-0">
+      {/* En móvil el div se disuelve (contents): la meta ocupa la segunda línea bajo título e importe. */}
+      <div className="min-w-0 max-sm:contents">
         <p className="flex min-w-0 items-center gap-2">
           <span className="truncate font-medium" title={title}>
             {title}
@@ -82,16 +83,17 @@ function RecentRow({
           {pending ? <span className="shrink-0 text-xs text-muted-foreground">Pendiente</span> : null}
         </p>
         {/* Meta en móvil */}
-        <p className="flex min-w-0 items-center gap-1 text-xs text-muted-foreground sm:hidden">
+        <p className="col-span-2 col-start-1 row-start-2 flex min-w-0 items-center gap-1 text-xs text-muted-foreground sm:hidden">
           <span className="num shrink-0">{date}</span>
           <span aria-hidden>·</span>
-          <span className="min-w-0 truncate">
+          {/* La categoría conserva su ancho (hasta 65 %) y la cuenta se trunca primero. */}
+          <span className="flex min-w-0 max-w-[65%] shrink-0">
             <CategoryLabel t={t} />
           </span>
           {t.type !== "TRANSFER" ? (
             <>
               <span aria-hidden>·</span>
-              <span className="min-w-0 shrink-[3] truncate">{t.accountName}</span>
+              <span className="min-w-0 truncate">{t.accountName}</span>
             </>
           ) : null}
         </p>
@@ -116,7 +118,7 @@ function RecentRow({
         target={{ id: t.id, transferGroupId: t.transferGroupId }}
         label={title}
         onEdit={onEdit}
-        className="-mr-1.5 text-muted-foreground"
+        className="-mr-1.5 text-muted-foreground max-sm:row-span-2"
       />
     </li>
   );

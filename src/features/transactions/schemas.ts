@@ -115,7 +115,16 @@ export const listTransactionsQuerySchema = z
     categoryIds: idList,
     tagIds: idList,
     types: typeList,
+    /** ILIKE sobre descripción + notas (índice trigram) o el nombre del payee. */
     q: z.string().trim().max(100).optional(),
+    /**
+     * Una fila por transferencia: oculta la pata de destino (la de origen trae
+     * `transfer.counterpartAccount`) y el filtro de cuentas casa con cualquiera
+     * de las dos patas. Lo usa la tabla de movimientos.
+     */
+    collapseTransfers: z
+      .preprocess((v) => (v === "true" || v === "1" ? true : v === "false" || v === "0" ? false : v), z.boolean())
+      .optional(),
     sort: z.enum(TRANSACTION_SORTS).default("date"),
     order: z.enum(["asc", "desc"]).default("desc"),
     cursor: z.string().max(500).optional(),

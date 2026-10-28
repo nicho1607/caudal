@@ -1,0 +1,9 @@
+# src/features/accounts/ — cuentas
+
+- API: `GET /api/v1/accounts` (active only; `?include=archived` adds archived ones), `POST` (201; no `currency` = user base currency), `GET|PATCH /[id]`, `POST /[id]/archive`, `POST /[id]/unarchive`. Service: `src/server/services/account.service.ts`; pure rules: `account.logic.ts`. DTO `AccountDTO` (types.ts): amounts are `number` (balance, initialBalance, creditLimit), `archivedAt` ISO|null, `hasTransactions` (counts soft-deleted rows too → type/currency locked).
+- Query keys: `queryKeys.accounts.list()` = active accounts (forms, filters, Quick Add cache read); `queryKeys.accounts.overview()` = active + archived for the /accounts page (prefetched by its RSC with the same key). Mutations in `hooks/use-accounts.ts` call `useInvalidateTransactionData()` (accounts + dashboard + transactions + `router.refresh()` for the server-rendered sidebar). `useAccountActions()` → `archive` (optimistic, toast "Cuenta archivada" + Deshacer) / `restore`.
+- Pure helpers, tested in tests/unit/account-logic.test.ts: `calc.ts` (`groupAccounts` in fixed ACCOUNT_TYPES order with Spanish labels, `netWorth` = Σ includeInNetWorth active accounts in the base currency — cards subtract because their balance is negative, `creditUsage` used = −balance, warning ≥ 80 %), `form.ts` (`toFormValues`, `toCreateInput`, `toUpdatePayload` with only changed fields), `schemas.ts` `parseMoneyInput` (COP-aware: "1.500.000" ok, "12,5" invalid in COP; "1.234,56" in EUR).
+- Accounts in a currency ≠ base can be created but don't add to net worth/subtotals and `createTransaction` rejects them (no FX yet); the form says so.
+- Colors: tokens `chart-1..6` only (`ACCOUNT_COLORS`), rendered through `cssColor()`.
+- Rows link to `/transactions?account=<id>` (TXN-002 filter param); the ⋯ menu is a sibling of the link, not inside it.
+- Service tests: tests/unit/account-service.test.ts (real DB, throwaway users).

@@ -19,6 +19,8 @@ export const queryKeys = {
   accounts: {
     all: ["accounts"] as const,
     list: () => ["accounts", "list"] as const,
+    /** Página de cuentas: activas + archivadas (`?include=archived`). */
+    overview: () => ["accounts", "overview"] as const,
     detail: (id: string) => ["accounts", "detail", id] as const,
   },
   categories: {

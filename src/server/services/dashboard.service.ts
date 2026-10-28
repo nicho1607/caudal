@@ -176,8 +176,10 @@ export async function getDashboard(
             nextRunAt: true,
           },
         }),
+    // Una fila por transferencia: se omite la pata de destino (+) y su cuenta
+    // se añade abajo como `counterpartAccountName`.
     db.transaction.findMany({
-      where: { ...notDeleted, date: monthRange },
+      where: { ...notDeleted, date: monthRange, NOT: { type: "TRANSFER", amount: { gt: 0 } } },
       orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       take: RECENT_LIMIT,
       select: {
@@ -189,6 +191,7 @@ export async function getDashboard(
         currency: true,
         status: true,
         autoCategorized: true,
+        transferGroupId: true,
         payee: { select: { name: true } },
         category: { select: { name: true, color: true } },
         account: { select: { name: true } },
@@ -324,6 +327,15 @@ export async function getDashboard(
     daysRemaining: ctx.daysRemaining,
   });
 
+  const transferGroups = recentRows.map((t) => t.transferGroupId).filter((g): g is string => !!g);
+  const destinationLegs = transferGroups.length
+    ? await db.transaction.findMany({
+        where: { userId, transferGroupId: { in: transferGroups }, amount: { gt: 0 } },
+        select: { transferGroupId: true, account: { select: { name: true } } },
+      })
+    : [];
+  const destinationByGroup = new Map(destinationLegs.map((l) => [l.transferGroupId, l.account.name]));
+
   const recent: RecentTransaction[] = recentRows.map((t) => ({
     id: t.id,
     date: utcToIso(t.date),
@@ -337,6 +349,8 @@ export async function getDashboard(
     currency: t.currency,
     status: t.status,
     autoCategorized: t.autoCategorized,
+    transferGroupId: t.transferGroupId,
+    counterpartAccountName: t.transferGroupId ? (destinationByGroup.get(t.transferGroupId) ?? null) : null,
   }));
 
   const net = current.income - current.expense;

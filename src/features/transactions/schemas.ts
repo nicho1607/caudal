@@ -135,3 +135,35 @@ export type UpdateTransactionInput = z.infer<typeof updateTransactionSchema>;
 export type ListTransactionsQuery = z.infer<typeof listTransactionsQuerySchema>;
 /** Lo que el formulario manda antes de los defaults (sort/order/limit opcionales). */
 export type ListTransactionsFilters = z.input<typeof listTransactionsQuerySchema>;
+
+// ─── Formulario de edición (Sheet) ──────────────────────────────────────────
+
+/** "12,5" → "12.5"; sin espacios. El formulario acepta coma decimal. */
+export function normalizeAmountInput(value: string): string {
+  return value.replace(/\s/g, "").replace(",", ".");
+}
+
+/**
+ * Valores del formulario de movimiento: todo string (inputs controlados).
+ * `""` en categoryId = sin categoría; en description/payee/notes = vacío (null).
+ */
+export const transactionFormSchema = z.object({
+  description: z.string().trim().max(200, "Máximo 200 caracteres"),
+  payee: z.string().trim().max(120, "Máximo 120 caracteres"),
+  amount: z
+    .string()
+    .trim()
+    .min(1, "Indica un importe")
+    .superRefine((value, ctx) => {
+      const parsed = amountInputSchema.safeParse(normalizeAmountInput(value));
+      if (!parsed.success) {
+        ctx.addIssue({ code: "custom", message: parsed.error.issues[0]?.message ?? "Importe no válido" });
+      }
+    }),
+  date: isoDate,
+  accountId: z.string().min(1, "Elige una cuenta"),
+  categoryId: z.string(),
+  notes: z.string().trim().max(2000, "Máximo 2000 caracteres"),
+});
+
+export type TransactionFormValues = z.infer<typeof transactionFormSchema>;

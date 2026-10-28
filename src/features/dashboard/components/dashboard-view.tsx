@@ -8,28 +8,7 @@ import { CashflowChart } from "./cashflow-chart";
 import { CategoryDonut } from "./category-donut";
 import { FinancialHealthPanel } from "./financial-health-panel";
 import { KpiStrip, KpiStripSkeleton } from "./kpi-strip";
-import { WidgetCard } from "./widget-card";
-
-interface WidgetSlotProps {
-  /** Identificador estable del hueco (`data-slot`), lo reemplaza la historia que lo implementa. */
-  slot: string;
-  title: string;
-  className?: string;
-}
-
-/**
- * Hueco reservado para un widget aún no construido (DASH-005).
- * Mantiene la rejilla del wireframe (docs §3) sin mostrar datos inventados.
- */
-function WidgetSlot({ slot, title, className }: WidgetSlotProps) {
-  return (
-    <WidgetCard slot={slot} title={title} className={className}>
-      <div className="flex flex-1 items-center justify-center rounded-md border border-dashed">
-        <p className="text-xs text-muted-foreground">Próximamente</p>
-      </div>
-    </WidgetCard>
-  );
-}
+import { RecentTransactions } from "./recent-transactions";
 
 export function DashboardView() {
   const { data, isPending, isError, refetch, isRefetching } = useDashboard();
@@ -58,11 +37,7 @@ export function DashboardView() {
         <FinancialHealthPanel className="order-1 lg:order-none lg:col-span-4" />
         <CategoryDonut className="order-5 lg:order-none lg:col-span-5" />
         <BudgetList className="order-2 lg:order-none lg:col-span-7" />
-        <WidgetSlot
-          slot="recent-transactions"
-          title="Últimos movimientos"
-          className="order-3 lg:order-none lg:col-span-12"
-        />
+        <RecentTransactions className="order-3 lg:order-none lg:col-span-12" />
       </div>
     </div>
   );

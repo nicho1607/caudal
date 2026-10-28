@@ -66,6 +66,10 @@ export interface RecentTransaction {
   currency: string;
   status: "PENDING" | "CLEARED" | "RECONCILED";
   autoCategorized: boolean; // categoría asignada por una regla (marcador ✦)
+  /** Transferencias: una sola fila (la pata de origen, amount < 0) por grupo. */
+  transferGroupId: string | null;
+  /** Transferencias: cuenta de destino ("Bancolombia Ahorros → Nu Ahorros"). */
+  counterpartAccountName: string | null;
 }
 
 export interface DashboardData {

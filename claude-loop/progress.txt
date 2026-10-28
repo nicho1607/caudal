@@ -19,6 +19,7 @@
 - API: Route Handlers use `handler()` from `@/server/http` (session user + zod + error mapping); see src/server/AGENTS.md. Client data: query keys only from `queryKeys` in `@/lib/query-keys`; RSC prefetch with `getQueryClient()` from `@/lib/query-client` (same defaults as the browser, staleTime 60 s). Root layout provides NuqsAdapter + QueryProvider.
 - Dashboard math: pure helpers in `src/server/services/dashboard.calc.ts` (ISO date strings, user-tz "today"); services only query + map. Read currency/locale/timezone from the user record, never hard-code.
  and the amount — normalize in tests.
+- Transaction mutations from any UI: use `useTransactionActions()` / `use*Transaction` hooks + `TransactionRowActions` / `TransactionSheet` from `src/features/transactions/` (they invalidate dashboard/transactions/accounts and `router.refresh()` the server-rendered sidebar). Client fetch helper: `apiFetch` from `@/lib/api`.
 - Demo data: `npm run db:seed` (idempotent, rerunnable). Demo user id = `DEMO_USER_ID` from `@/server/demo-user`. Deterministic randomness: `createRng(seed)` from `@/lib/prng`.
 
 ## 2026-10-28 - SETUP-001
@@ -182,4 +183,18 @@
   - Seeded ids are UUIDs, API-created ones are cuids — never assume an id format beyond "string ≤ 64".
   - Bash heredocs in this tool mangled `\` inside a quoted 'EOF' test file; write files containing backslashes with the Write tool.
   - Vitest doesn't load .env: DB-backed tests need `import "dotenv/config"` and a dynamic import of `@/server/db` inside the describe.
+---
+
+## 2026-10-28 - DASH-005
+- RecentTransactions widget replaces the `recent-transactions` slot (same order/col classes): 8 rows (date "27 oct", payee/description, category with color dot + ✦ for autoCategorized, account, signed amount in income/expense color; "Pendiente" marker), ⋯ row menu, "Ver todos" → /transactions, skeleton/empty ("Aún no hay movimientos este mes." + [Añadir movimiento] → requestQuickAdd())/error states. Two-line rows below sm.
+- Dashboard DTO: `recent` now excludes the destination leg of transfers (one row per transfer) and adds `transferGroupId` + `counterpartAccountName` (extra query only when transfers are present) → "Bancolombia Ahorros → Nu Ahorros", "Transferencia", unsigned amount in transfer color.
+- src/features/transactions: `api.ts`, `form.ts` (pure: toFormValues/changedFields/toUpdatePayload/duplicateInput/matchesTarget), `transactionFormSchema` in schemas.ts, `hooks/use-transactions.ts` (useTransaction, useDelete/Restore/Update/CreateTransaction, useInvalidateTransactionData, useTransactionActions with sonner toasts + Deshacer), `components/transaction-row-actions.tsx`, `components/transaction-sheet.tsx` (react-hook-form + zod; description, payee, amount, date, account, category filtered by kind, notes; transfers hide payee/category; toast "Cambios guardados").
+- Minimal read endpoints for the form: GET /api/v1/accounts (listAccountBalances) and GET /api/v1/categories (new category.service.ts listCategories, tree order) + useAccounts/useCategories hooks. `formatShortDate()` in lib/format.ts. `apiFetch` in lib/api.ts.
+- Files: src/features/dashboard/{types.ts,components/dashboard-view.tsx,components/recent-transactions.tsx}, src/server/services/{dashboard.service.ts,category.service.ts}, src/app/api/v1/{accounts,categories}/route.ts, src/features/{accounts,categories}/{types.ts,hooks/*}, src/features/transactions/{schemas.ts,api.ts,form.ts,hooks/use-transactions.ts,components/*,AGENTS.md}, src/lib/{api.ts,format.ts}, tests/unit/transaction-form.test.ts, AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint (src + tests), vitest full suite (133). Chrome on :3200 (next build + next start), dark + light at 1536 px and 375 px iframe (scrollWidth = clientWidth): delete Éxito → row gone, next row backfilled, KPIs + sidebar balance change; Deshacer → row back and KPI strip + sidebar text identical to before (compared programmatically); edit category Mercado → Restaurantes y domicilios saved ("Cambios guardados", ✦ gone); Duplicar → copy dated 28 oct + toast with Deshacer; no console errors on a clean load. Reseeded afterwards.
+- **Learnings for future iterations:**
+  - react-hook-form `formState.dirtyFields` is a subscription proxy: read only inside handleSubmit it is `{}` → my first build closed the sheet without saving. Compare against initial values instead.
+  - Sonner toasts (5 s) expire while you take screenshots/find refs; click "Deshacer" by `find` ref right after the action, and coordinate clicks on a toast can miss because the stack expands on hover.
+  - Replacing `document.body` (iframe trick for 375 px) right after navigate, before hydration, produces a React #418 in the console; wait for load first.
+  - Restoring rows deleted by mistake during testing: `POST /api/v1/transactions/<id>/restore`; find them with psql `where "deletedAt" is not null`.
 ---

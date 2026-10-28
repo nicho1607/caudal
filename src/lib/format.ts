@@ -69,3 +69,19 @@ export function relativeChange(current: number, previous: number): number | null
   if (previous === 0) return null;
   return (current - previous) / Math.abs(previous);
 }
+
+const shortDateFormatters = new Map<string, Intl.DateTimeFormat>();
+
+/** "2026-10-27" → "27 oct" (día + mes corto, sin "de" ni punto; fecha civil, sin zona). */
+export function formatShortDate(isoDate: string, locale = DEFAULT_LOCALE) {
+  let fmt = shortDateFormatters.get(locale);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", timeZone: "UTC" });
+    shortDateFormatters.set(locale, fmt);
+  }
+  return fmt
+    .formatToParts(new Date(`${isoDate}T00:00:00Z`))
+    .filter((p) => p.type === "day" || p.type === "month")
+    .map((p) => p.value.replace(/\.$/, ""))
+    .join(" ");
+}

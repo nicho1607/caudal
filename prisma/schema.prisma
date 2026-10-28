@@ -55,7 +55,7 @@ enum CategoryKind {
 }
 
 enum CostNature {
-  FIXED    // alquiler, suscripciones, seguros
+  FIXED // alquiler, suscripciones, seguros
   VARIABLE // supermercado, ocio
 }
 
@@ -86,9 +86,9 @@ enum RuleMatch {
 }
 
 enum RuleSource {
-  USER    // creada explícitamente
+  USER // creada explícitamente
   LEARNED // inferida de correcciones del usuario
-  SYSTEM  // reglas semilla (Netflix → Suscripciones, etc.)
+  SYSTEM // reglas semilla (Netflix → Suscripciones, etc.)
 }
 
 enum GoalStatus {
@@ -113,15 +113,16 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  accounts            Account[]
-  categories          Category[]
-  transactions        Transaction[]
-  tags                Tag[]
-  payees              Payee[]
-  budgets             Budget[]
-  goals               SavingsGoal[]
-  recurringRules      RecurringRule[]
-  categorizationRules CategorizationRule[]
+  accounts                  Account[]
+  categories                Category[]
+  transactions              Transaction[]
+  tags                      Tag[]
+  payees                    Payee[]
+  budgets                   Budget[]
+  goals                     SavingsGoal[]
+  recurringRules            RecurringRule[]
+  categorizationRules       CategorizationRule[]
+  categorizationCorrections CategorizationCorrection[]
 
   @@map("users")
 }
@@ -129,22 +130,22 @@ model User {
 // ─── Cuentas / Carteras ──────────────────────────────────────────────────────
 
 model Account {
-  id             String      @id @default(cuid())
-  userId         String      @db.Uuid
-  name           String
-  type           AccountType
-  currency       String      @db.Char(3)
-  initialBalance Decimal     @default(0) @db.Decimal(19, 4)
-  creditLimit    Decimal?    @db.Decimal(19, 4) // sólo CREDIT_CARD
-  institution    String?
-  last4          String?     @db.VarChar(4)
-  color          String?     // token de color para UI
-  icon           String?     // nombre de icono Lucide
-  includeInNetWorth Boolean  @default(true)
-  sortOrder      Int         @default(0)
-  archivedAt     DateTime?
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  id                String      @id @default(cuid())
+  userId            String      @db.Uuid
+  name              String
+  type              AccountType
+  currency          String      @db.Char(3)
+  initialBalance    Decimal     @default(0) @db.Decimal(19, 4)
+  creditLimit       Decimal?    @db.Decimal(19, 4) // sólo CREDIT_CARD
+  institution       String?
+  last4             String?     @db.VarChar(4)
+  color             String? // token de color para UI
+  icon              String? // nombre de icono Lucide
+  includeInNetWorth Boolean     @default(true)
+  sortOrder         Int         @default(0)
+  archivedAt        DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
 
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions   Transaction[]
@@ -171,14 +172,15 @@ model Category {
   createdAt  DateTime     @default(now())
   updatedAt  DateTime     @updatedAt
 
-  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent              Category?            @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
-  children            Category[]           @relation("CategoryTree")
-  transactions        Transaction[]
-  budgets             Budget[]
-  recurringRules      RecurringRule[]
-  categorizationRules CategorizationRule[]
-  payeeDefaults       Payee[]
+  user                      User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent                    Category?                  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children                  Category[]                 @relation("CategoryTree")
+  transactions              Transaction[]
+  budgets                   Budget[]
+  recurringRules            RecurringRule[]
+  categorizationRules       CategorizationRule[]
+  payeeDefaults             Payee[]
+  categorizationCorrections CategorizationCorrection[]
 
   @@unique([userId, parentId, name])
   @@index([userId, kind])
@@ -190,8 +192,8 @@ model Category {
 model Payee {
   id                String   @id @default(cuid())
   userId            String   @db.Uuid
-  name              String   // "Mercadona"
-  normalizedName    String   // "mercadona" (lowercase, sin acentos ni sufijos tipo "S.A.")
+  name              String // "Mercadona"
+  normalizedName    String // "mercadona" (lowercase, sin acentos ni sufijos tipo "S.A.")
   defaultCategoryId String?
   logoUrl           String?
   createdAt         DateTime @default(now())
@@ -207,13 +209,13 @@ model Payee {
 // ─── Transacciones ───────────────────────────────────────────────────────────
 
 model Transaction {
-  id              String            @id @default(cuid())
-  userId          String            @db.Uuid
+  id              String  @id @default(cuid())
+  userId          String  @db.Uuid
   accountId       String
-  categoryId      String?           // null en transferencias
+  categoryId      String? // null en transferencias
   payeeId         String?
   recurringRuleId String?
-  transferGroupId String?           // une las dos patas de una transferencia
+  transferGroupId String? // une las dos patas de una transferencia
 
   type        TransactionType
   status      TransactionStatus @default(CLEARED)
@@ -226,8 +228,8 @@ model Transaction {
   notes       String?
 
   // Trazabilidad de la auto-categorización
-  autoCategorized       Boolean @default(false)
-  categorizationRuleId  String?
+  autoCategorized      Boolean @default(false)
+  categorizationRuleId String?
 
   deletedAt DateTime?
   createdAt DateTime  @default(now())
@@ -290,16 +292,16 @@ model RecurringRule {
   userId      String          @db.Uuid
   accountId   String
   categoryId  String?
-  name        String          // "Netflix", "Nómina"
+  name        String // "Netflix", "Nómina"
   type        TransactionType
   amount      Decimal         @db.Decimal(19, 4) // con signo, igual que Transaction
   currency    String          @db.Char(3)
   description String?
 
   frequency  Frequency
-  interval   Int       @default(1)   // cada N periodos
-  dayOfMonth Int?      @db.SmallInt  // 1..31 (se ajusta al último día si no existe)
-  dayOfWeek  Int?      @db.SmallInt  // 0..6
+  interval   Int       @default(1) // cada N periodos
+  dayOfMonth Int?      @db.SmallInt // 1..31 (se ajusta al último día si no existe)
+  dayOfWeek  Int?      @db.SmallInt // 0..6
   startDate  DateTime  @db.Date
   endDate    DateTime? @db.Date
   nextRunAt  DateTime  @db.Date
@@ -323,7 +325,7 @@ model RecurringRule {
 model Budget {
   id             String       @id @default(cuid())
   userId         String       @db.Uuid
-  categoryId     String       // incluye subcategorías al calcular el consumo
+  categoryId     String // incluye subcategorías al calcular el consumo
   period         BudgetPeriod @default(MONTHLY)
   amount         Decimal      @db.Decimal(19, 4) // en moneda base
   alertThreshold Decimal      @default(0.80) @db.Decimal(3, 2) // 0.80 = 80 %
@@ -343,11 +345,11 @@ model Budget {
 
 // Registro de alertas emitidas (evita notificar dos veces el mismo umbral/periodo)
 model BudgetAlert {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   budgetId    String
-  periodStart DateTime @db.Date
-  threshold   Decimal  @db.Decimal(3, 2) // 0.80, 1.00
-  triggeredAt DateTime @default(now())
+  periodStart DateTime  @db.Date
+  threshold   Decimal   @db.Decimal(3, 2) // 0.80, 1.00
+  triggeredAt DateTime  @default(now())
   readAt      DateTime?
 
   budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
@@ -359,19 +361,19 @@ model BudgetAlert {
 // ─── Metas de ahorro ─────────────────────────────────────────────────────────
 
 model SavingsGoal {
-  id               String     @id @default(cuid())
-  userId           String     @db.Uuid
-  linkedAccountId  String?    // si se vincula, el progreso = balance de la cuenta
-  name             String
-  targetAmount     Decimal    @db.Decimal(19, 4)
-  currency         String     @db.Char(3)
-  targetDate       DateTime?  @db.Date
-  monthlyPlan      Decimal?   @db.Decimal(19, 4) // aporte mensual planificado
-  status           GoalStatus @default(ACTIVE)
-  color            String?
-  icon             String?
-  createdAt        DateTime   @default(now())
-  updatedAt        DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  userId          String     @db.Uuid
+  linkedAccountId String? // si se vincula, el progreso = balance de la cuenta
+  name            String
+  targetAmount    Decimal    @db.Decimal(19, 4)
+  currency        String     @db.Char(3)
+  targetDate      DateTime?  @db.Date
+  monthlyPlan     Decimal?   @db.Decimal(19, 4) // aporte mensual planificado
+  status          GoalStatus @default(ACTIVE)
+  color           String?
+  icon            String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   linkedAccount Account?           @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)
@@ -384,7 +386,7 @@ model SavingsGoal {
 model GoalContribution {
   id            String   @id @default(cuid())
   goalId        String
-  transactionId String?  // opcional: aporte respaldado por una transacción real
+  transactionId String? // opcional: aporte respaldado por una transacción real
   amount        Decimal  @db.Decimal(19, 4)
   date          DateTime @db.Date
   note          String?
@@ -405,7 +407,7 @@ model CategorizationRule {
   categoryId String
   field      RuleField  @default(PAYEE)
   match      RuleMatch  @default(CONTAINS)
-  pattern    String     // normalizado (lowercase, sin acentos) salvo REGEX
+  pattern    String // normalizado (lowercase, sin acentos) salvo REGEX
   priority   Int        @default(100) // menor = se evalúa antes
   source     RuleSource @default(USER)
   hitCount   Int        @default(0)
@@ -419,6 +421,22 @@ model CategorizationRule {
 
   @@index([userId, isActive, priority])
   @@map("categorization_rules")
+}
+
+// Cada vez que el usuario corrige la categoría sugerida de un payee. Al llegar a
+// LEARN_AFTER_CORRECTIONS (2) para el mismo payee y categoría se crea una regla LEARNED.
+model CategorizationCorrection {
+  id              String   @id @default(cuid())
+  userId          String   @db.Uuid
+  payeeNormalized String // normalize(payee), mismo formato que Payee.normalizedName
+  categoryId      String
+  createdAt       DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([userId, payeeNormalized, categoryId])
+  @@map("categorization_corrections")
 }
 
 // ─── Tipos de cambio (multimoneda) ───────────────────────────────────────────

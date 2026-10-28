@@ -22,6 +22,7 @@ import type {
 import { createRng } from "../src/lib/prng";
 import { db } from "../src/server/db";
 import { DEMO_USER_EMAIL, DEMO_USER_ID } from "../src/server/demo-user";
+import { foldText, normalize } from "../src/server/services/categorization.match";
 
 const CURRENCY = "COP";
 const LOCALE = "es-CO";
@@ -263,17 +264,6 @@ const PAYEES = {
 } satisfies Record<string, { name: string; category: CategoryKey; rule?: string }>;
 
 type PayeeKey = keyof typeof PAYEES;
-
-/** Minúsculas, sin acentos ni sufijos societarios ("S.A.S.", "S.A.", "S.L."). */
-function normalizeName(name: string): string {
-  return name
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/\b(s\.?a\.?s\.?|s\.?l\.?|s\.?a\.?)$/u, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
 
 // ─── Ids (generados aquí para poder enlazar filas antes de insertarlas) ──────
 
@@ -648,7 +638,7 @@ async function main() {
           id: payeeId[key],
           userId: DEMO_USER_ID,
           name: p.name,
-          normalizedName: normalizeName(p.name),
+          normalizedName: normalize(p.name),
           defaultCategoryId: categoryId[p.category],
         })),
       });
@@ -662,7 +652,7 @@ async function main() {
             categoryId: categoryId[p.category],
             field: "PAYEE" as const,
             match: "CONTAINS" as const,
-            pattern: p.rule!,
+            pattern: foldText(p.rule!),
             priority: 1000,
             source: "SYSTEM" as const,
             hitCount: ruleHits.get(key)?.count ?? 0,

@@ -16,3 +16,4 @@
 - The demo user is Colombian (COP, es-CO, America/Bogota). Seed money is whole pesos (COP has no practical minor unit): integers passed to Prisma as strings via `money()`, which throws on decimals.
 - The seed asserts its own invariants at build time (no negative Bancolombia/Efectivo end-of-day balance); if you change amounts and it throws, rebalance instead of removing the check. Payroll lands on the 25th, moved to today in the current month if today is earlier, so the dashboard always shows a month with income.
 - SYSTEM rule patterns are CONTAINS on the normalized payee name: avoid short patterns that match inside other names (e.g. use `tiendas ara`, not `ara`).
+- Payee `normalizedName` and SYSTEM rule patterns come from `normalize()` / `foldText()` in `src/server/services/categorization.match.ts` (imported by the seed); change normalization there only, then reseed.

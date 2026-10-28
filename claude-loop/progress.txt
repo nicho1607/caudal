@@ -152,3 +152,19 @@
   - API for a future month (daysElapsed 0) still returns a non-zero projectedMonthEnd from recurring rules; gate projection UI with isProjectingMonth().
   - Seeded October: pace 90 % (28/31), so no budget is in the "ahead" state; that tone is covered by tests/unit/budget-progress.test.tsx.
 ---
+
+## 2026-10-28 - CAT-001
+- Pure matcher `src/server/services/categorization.match.ts`: `normalize()` (NFD accents, lowercase, punctuation → space, strips bank prefixes COMPRA EN / COMPRA / PAGO PSE / PAGO EN / PAGO / PSE / POS, company suffixes S.A.S. / S.A. / S.L. / LTDA / E.S.P. / S. en C., trailing reference numbers incl. "*4821"; falls back to the folded text if nothing is left), `foldText()` for rule patterns, `ruleMatches()` (CONTAINS/EQUALS/STARTS_WITH on normalized text, REGEX case-insensitive on normalized or raw, invalid regex = no match, cached), `suggestCategory()` (USER → known payee → LEARNED → SYSTEM, priority asc then createdAt then id; no mutation).
+- `categorization.service.ts`: `suggest()` (read-only), `recordRuleHit()`, `applyCategorization()` (suggest + hit), `recordCorrection()` (stores a correction; on the 2nd for the same payee+category upserts a LEARNED PAYEE/EQUALS rule, priority 500, and updates Payee.defaultCategoryId).
+- New table `categorization_corrections` (model CategorizationCorrection, migration 20261028160416_categorization_corrections) — there was nowhere to count corrections.
+- `GET /api/v1/categorize/suggest?payee=&description=` → `{categoryId, ruleId, source}` (source USER|PAYEE|LEARNED|SYSTEM) or `null`.
+- prisma/seed.ts now imports `normalize`/`foldText` from the matcher (local normalizeName removed); reseeded OK, same normalized names.
+- Files: prisma/schema.prisma, prisma/migrations/20261028160416_categorization_corrections/, prisma/seed.ts, prisma/AGENTS.md, src/server/services/categorization.{match,service}.ts, src/app/api/v1/categorize/suggest/route.ts, src/server/AGENTS.md, tests/unit/categorization-match.test.ts, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest (101, 35 new), `npm run db:seed`; curl on :3123 ("ÉXITO COLINA*4821" → Éxito SYSTEM rule, "RAPPI*RESTAURANTE 99881" → Rappi, "Crepes & Waffles" → PAYEE, "COMPRA EN TIENDAS D1 0234" → PAYEE, unknown → null, repeated key → 400); tsx smoke script against the DB: suggest doesn't touch hitCount, apply +1 with lastHitAt, 1st correction no rule, 2nd creates LEARNED and suggest returns it, 3rd reuses it, known payee re-learned via defaultCategoryId, foreign category → NotFoundError. Reseeded afterwards.
+- **Learnings for future iterations:**
+  - Known payee is checked before LEARNED rules, so learning must also update Payee.defaultCategoryId or the LEARNED rule is shadowed.
+  - Known-payee matching is exact on normalizedName ("exito colina" is not payee "exito"), so fuzzy bank strings fall through to SYSTEM CONTAINS rules.
+  - `prisma format` realigns whole model blocks when a longer field name is added (whitespace-only diff noise).
+  - tsx scripts with top-level await must be `.mts` (cjs output otherwise).
+  - The running dev server picked up the new route without restart; its cached PrismaClient (globalThis) won't know new models until restarted — only matters for routes that use them.
+---

@@ -6,6 +6,7 @@
 - `postinstall` runs `prisma generate` (client in src/generated/prisma, gitignored).
 - Root layout already provides ThemeProvider (class), TooltipProvider and `<Toaster />` (sonner) — don't add them again in nested layouts.
 - DB: import `db` from `@/server/db` (only in src/server); types/enums from `@/generated/prisma/client`. Hand-written SQL migrations: `prisma migrate dev --create-only --name x`, edit, then `prisma migrate dev`. See prisma/AGENTS.md.
+- API: Route Handlers use `handler()` from `@/server/http` (session user + zod + error mapping); see src/server/AGENTS.md. Client data: query keys only from `queryKeys` in `@/lib/query-keys`; RSC prefetch with `getQueryClient()` from `@/lib/query-client` (same defaults as the browser, staleTime 60 s). Root layout provides NuqsAdapter + QueryProvider.
 - Demo data: `npm run db:seed` (idempotent, rerunnable). Demo user id = `DEMO_USER_ID` from `@/server/demo-user`. Deterministic randomness: `createRng(seed)` from `@/lib/prng`.
 
 ## 2026-10-28 - SETUP-001
@@ -48,4 +49,16 @@
   - Credit-card transactions dated yesterday/today are seeded as PENDING; the rest CLEARED.
   - The seed imports `db` via relative path (`../src/server/db`); tsx resolves the `@/` alias inside db.ts from tsconfig.json.
   - In Git Bash, a bare `python -` may hang (Windows store stub) — use node for scripting.
+---
+
+## 2026-10-28 - CORE-001
+- src/server/errors.ts (HttpError, NotFoundError, UnauthorizedError), src/server/auth.ts (getSessionUser(): demo user from DB, React cache, SessionUser type), src/server/http.ts (handler(): session user, zod body/query/params, ZodError→400 {error, issues}, invalid JSON→400, HttpError→status, unknown→500 generic; undefined→204, Response passthrough).
+- src/lib/query-keys.ts (domain-rooted key factory), src/lib/query-client.ts (makeQueryClient/getQueryClient: staleTime 60 s, gcTime 5 min, retry 1, no refetch on focus, dehydrates pending queries), src/components/query-provider.tsx; root layout now ThemeProvider > NuqsAdapter > QueryProvider > TooltipProvider (+ Toaster).
+- tests/unit/http.test.ts (8 tests).
+- Files: the above + src/app/layout.tsx, src/server/AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest http.test.ts; / loads with no console errors (Chrome).
+- **Learnings for future iterations:**
+  - A next dev server may already be running for this repo on another port (e.g. 3123, see .next/dev/logs); starting a second one exits with "Another next dev server is already running" — reuse it.
+  - The server-only package is not installed; don't import it without adding the dependency.
+  - handler()'s returned function types its second arg as { params?: Promise<unknown> } so it satisfies Next's route type check for static and dynamic routes; validate params with the params zod schema.
 ---

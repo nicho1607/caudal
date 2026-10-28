@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
@@ -30,10 +32,14 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
     >
       <body className="flex min-h-full flex-col font-sans">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <TooltipProvider>
-            {children}
-            <Toaster />
-          </TooltipProvider>
+          <NuqsAdapter>
+            <QueryProvider>
+              <TooltipProvider>
+                {children}
+                <Toaster />
+              </TooltipProvider>
+            </QueryProvider>
+          </NuqsAdapter>
         </ThemeProvider>
       </body>
     </html>

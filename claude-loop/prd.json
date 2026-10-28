@@ -73,7 +73,7 @@
       ],
       "dependsOn": ["SETUP-001"],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": ""
     },
     {

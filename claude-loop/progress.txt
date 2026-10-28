@@ -5,6 +5,7 @@
 - Tests: Vitest + jsdom, files in `tests/unit/**/*.test.ts[x]` or colocated `src/**/*.test.ts[x]`; run one with `npx vitest run <path>`.
 - `postinstall` runs `prisma generate` (client in src/generated/prisma, gitignored).
 - Root layout already provides ThemeProvider (class), TooltipProvider and `<Toaster />` (sonner) — don't add them again in nested layouts.
+- DB: import `db` from `@/server/db` (only in src/server); types/enums from `@/generated/prisma/client`. Hand-written SQL migrations: `prisma migrate dev --create-only --name x`, edit, then `prisma migrate dev`. See prisma/AGENTS.md.
 
 ## 2026-10-28 - SETUP-001
 - Scaffolded Next.js 16.4.3 (App Router, src/, @/* alias, TS strict) via create-next-app in a temp dir and copied files in; existing docs/, prisma/, globals.css, lib/format.ts, features/dashboard/types.ts preserved.
@@ -21,4 +22,16 @@
   - `next dev` writes a nextjs-agent-rules block into AGENTS.md; keep it committed.
   - Vitest prints a harmless "ESM syntax in a file loaded as CommonJS" warning for vitest.config.ts (package.json has no "type": "module"); tests still run.
   - eslint ignores src/generated/**.
+---
+
+## 2026-10-28 - DB-001
+- src/server/db.ts: PrismaClient singleton (`export const db`) with PrismaPg adapter on DATABASE_URL, globalThis cache outside production, throws if DATABASE_URL is missing.
+- Migrations: `20261028145847_init` (full schema) and `20261028145858_search_trgm_index` (CREATE EXTENSION pg_trgm + GIN index `transactions_search_trgm` on coalesce(description,'') || ' ' || coalesce(notes,'')). Both applied to the local `caudal` DB.
+- Files: src/server/db.ts, src/server/AGENTS.md, prisma/AGENTS.md, prisma/migrations/**, claude-loop/{prd.json,progress.txt}
+- Verified: prisma validate, prisma generate, typecheck, eslint on db.ts; smoke script ran `db.transaction.count()` + `$queryRaw` against the DB.
+- **Learnings for future iterations:**
+  - The schema validated without any fixes.
+  - Prisma's diff ignores expression indexes: a follow-up `migrate dev --create-only` produced an empty migration, so the trigram index won't be dropped later.
+  - Scripts outside Next need `import "dotenv/config"`. tsx on Windows: dynamic import of an absolute path needs a `file:///` URL (spaces as %20). Always pass `< /dev/null` or avoid bare `cat >` with no stdin, or the shell hangs.
+  - The search query must reuse the exact indexed expression in raw SQL to hit the GIN index.
 ---

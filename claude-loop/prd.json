@@ -37,7 +37,7 @@
       ],
       "dependsOn": ["SETUP-001"],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "Read .claude skill prisma-upgrade-v7 references (driver-adapters, prisma-config) if unsure. If .env is missing or DB unreachable, return a blocker — do not invent credentials."
     },
     {

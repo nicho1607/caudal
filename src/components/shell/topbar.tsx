@@ -4,6 +4,8 @@ import { Plus, Search } from "lucide-react";
 import { Suspense } from "react";
 
 import { Button } from "@/components/ui/button";
+import { requestCommandPalette } from "@/lib/command-palette";
+import { requestQuickAdd } from "@/lib/quick-add";
 import { cn } from "@/lib/utils";
 import { MobileNav } from "./mobile-nav";
 import { MonthSwitcher } from "./month-switcher";
@@ -23,7 +25,8 @@ function Kbd({ children, className }: { children: string; className?: string }) 
   );
 }
 
-// Búsqueda (⌘K) y "Nueva" (N) quedan inertes hasta QA-001 (paleta + Quick Add).
+// "Buscar" abre la paleta de comandos (⌘K) y "Nueva" el diálogo Quick Add (N);
+// ambos los monta CommandCenter en el layout de (app).
 export function Topbar({ accounts, locale }: { accounts: SidebarAccount[]; locale: string }) {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/80 md:px-6">
@@ -37,6 +40,8 @@ export function Topbar({ accounts, locale }: { accounts: SidebarAccount[]; local
           variant="outline"
           className="h-8 gap-2 px-2 text-muted-foreground max-sm:size-8 max-sm:border-transparent max-sm:bg-transparent max-sm:dark:bg-transparent sm:w-56 sm:justify-start"
           aria-label="Buscar"
+          aria-haspopup="dialog"
+          onClick={() => requestCommandPalette()}
           aria-keyshortcuts="Meta+K Control+K"
         >
           <Search aria-hidden />
@@ -44,7 +49,13 @@ export function Topbar({ accounts, locale }: { accounts: SidebarAccount[]; local
           <Kbd className="ml-auto text-muted-foreground">⌘K</Kbd>
         </Button>
         <ThemeToggle />
-        <Button className="h-8 gap-2 max-sm:size-8 max-sm:px-0" aria-label="Nueva transacción" aria-keyshortcuts="N">
+        <Button
+          className="h-8 gap-2 max-sm:size-8 max-sm:px-0"
+          aria-label="Nueva transacción"
+          aria-keyshortcuts="N"
+          aria-haspopup="dialog"
+          onClick={() => requestQuickAdd()}
+        >
           <Plus aria-hidden />
           <span className="hidden sm:inline">Nueva</span>
           <Kbd className="border-primary-foreground/25 text-primary-foreground/70">N</Kbd>

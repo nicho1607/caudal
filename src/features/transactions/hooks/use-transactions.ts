@@ -11,6 +11,7 @@ import { toast } from "sonner";
 import type { DashboardData } from "@/features/dashboard/types";
 import { transactionsApi } from "@/features/transactions/api";
 import { duplicateInput, matchesTarget, type TransactionTarget } from "@/features/transactions/form";
+import { insertIntoList, insertIntoRecent } from "@/features/transactions/optimistic";
 import type { CreateTransactionInput, UpdateTransactionInput } from "@/features/transactions/schemas";
 import type { TransactionDTO, TransactionListDTO } from "@/features/transactions/types";
 import { queryKeys } from "@/lib/query-keys";
@@ -109,6 +110,42 @@ export function useCreateTransaction() {
   const invalidate = useInvalidateTransactionData();
   return useMutation({
     mutationFn: (input: CreateTransactionInput) => transactionsApi.create(input),
+    onSettled: invalidate,
+  });
+}
+
+/**
+ * Alta con inserción optimista: `preview` (ver `previewTransaction`) aparece al
+ * instante en "Movimientos recientes" y en las listas cuyo filtro lo admite; se
+ * revierte si falla y, al terminar, se invalida todo como en el resto de mutaciones.
+ */
+export function useCreateTransactionOptimistic() {
+  const queryClient = useQueryClient();
+  const invalidate = useInvalidateTransactionData();
+  return useMutation({
+    mutationFn: ({ input }: { input: CreateTransactionInput; preview: TransactionDTO }) =>
+      transactionsApi.create(input),
+    onMutate: async ({ preview }) => {
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: queryKeys.dashboard.all }),
+        queryClient.cancelQueries({ queryKey: queryKeys.transactions.lists() }),
+      ]);
+      const snapshot: Snapshot = [
+        ...queryClient.getQueriesData({ queryKey: queryKeys.dashboard.all }),
+        ...queryClient.getQueriesData({ queryKey: queryKeys.transactions.lists() }),
+      ];
+      queryClient.setQueriesData<DashboardData>({ queryKey: queryKeys.dashboard.all }, (old) =>
+        insertIntoRecent(old, preview),
+      );
+      for (const [key] of queryClient.getQueriesData({ queryKey: queryKeys.transactions.lists() })) {
+        const filters = (key[2] ?? {}) as Record<string, unknown>;
+        queryClient.setQueryData(key, (old: unknown) => insertIntoList(old, preview, filters));
+      }
+      return { snapshot };
+    },
+    onError: (_error, _vars, context) => {
+      context?.snapshot.forEach(([key, data]) => queryClient.setQueryData(key, data));
+    },
     onSettled: invalidate,
   });
 }

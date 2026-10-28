@@ -168,3 +168,18 @@
   - tsx scripts with top-level await must be `.mts` (cjs output otherwise).
   - The running dev server picked up the new route without restart; its cached PrismaClient (globalThis) won't know new models until restarted — only matters for routes that use them.
 ---
+
+## 2026-10-28 - TXN-001
+- Transactions API: GET/POST /api/v1/transactions, GET/PATCH/DELETE /api/v1/transactions/[id], POST /api/v1/transactions/[id]/restore (all via handler()).
+- src/features/transactions/schemas.ts (zod shared with forms: create INCOME/EXPENSE | TRANSFER discriminated union, strict; partial PATCH; list query with repeated/comma ids, sort date|amount, order, cursor, limit ≤ 200), types.ts (TransactionDTO, TransactionListDTO), AGENTS.md (contract; Decimal → string).
+- transaction.logic.ts (pure): parseAmount (decimals per currencyFractionDigits → COP whole pesos), signedAmount, moneyFields/resolveFxRate (fxRate 1, other currency → 400 "multimoneda aún no soportado"), buildTransferLegs (−/+ with shared transferGroupId = randomUUID), base64url cursor bound to the sort, escapeLike, toTransactionDTO.
+- transaction.service.ts: list = raw SQL ids (filters, trigram ILIKE on the exact indexed expression, keyset (col, id), LIMIT n+1) → Prisma hydrate with account/category/payee/tags + transfer counterpart. Create: account/category/tag ownership checks (other user → 404), payee find-or-create by normalize(), auto-categorization when categoryId absent (+ recordRuleHit), transfer legs in one $transaction. PATCH: sign recomputed on type/amount/account change; transfers update both legs (accountId only the edited one); category change with payee → recordCorrection(). DELETE/restore idempotent, both legs.
+- Tests: tests/unit/transaction-logic.test.ts (15, pure) + tests/unit/transaction-service.test.ts (6, real local DB, two throwaway users created/deleted, skipped without DATABASE_URL): sign handling, decimals/FX/category kind, auto-cat + payee reuse + learning, transfer legs patch/delete/restore, filters/search/cursor, userId scoping (404).
+- Files: src/features/transactions/{schemas.ts,types.ts,AGENTS.md}, src/server/services/transaction.{logic,service}.ts, src/app/api/v1/transactions/{route.ts,[id]/route.ts,[id]/restore/route.ts}, tests/unit/transaction-{logic,service}.test.ts, src/server/AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest full suite (122). EXPLAIN shows `transactions_search_trgm` bitmap index scan for the q filter. curl on :3200 (next build + next start): pagination, q=rappi, sort amount, transfer counterpart, POST auto-cat (Rappi → Restaurantes y domicilios), COP decimals 400, transfer+categoryId 400, transfer PATCH/DELETE/restore moved both legs (psql), deleted → 404, bad cursor/date/empty PATCH → 400. Reseeded (273 tx, only demo user left).
+- **Learnings for future iterations:**
+  - `next dev -p 3200` can't start while the :3123 dev server runs (Next 16 single dev-server lock per folder). `npx next build && npx next start -p 3200` works side by side; stop it via Get-NetTCPConnection -LocalPort 3200 → Stop-Process.
+  - Seeded ids are UUIDs, API-created ones are cuids — never assume an id format beyond "string ≤ 64".
+  - Bash heredocs in this tool mangled `\` inside a quoted 'EOF' test file; write files containing backslashes with the Write tool.
+  - Vitest doesn't load .env: DB-backed tests need `import "dotenv/config"` and a dynamic import of `@/server/db` inside the describe.
+---

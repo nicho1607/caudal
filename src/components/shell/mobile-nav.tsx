@@ -8,7 +8,7 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetTitle, SheetTri
 import { SidebarContent, type SidebarAccount } from "./sidebar-content";
 
 /** Por debajo de md (768 px) el sidebar vive en un drawer lateral. */
-export function MobileNav({ accounts }: { accounts: SidebarAccount[] }) {
+export function MobileNav({ accounts, locale }: { accounts: SidebarAccount[]; locale: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -26,7 +26,7 @@ export function MobileNav({ accounts }: { accounts: SidebarAccount[] }) {
             <X aria-hidden />
           </Button>
         </SheetClose>
-        <SidebarContent accounts={accounts} onNavigate={() => setOpen(false)} />
+        <SidebarContent accounts={accounts} locale={locale} onNavigate={() => setOpen(false)} />
       </SheetContent>
     </Sheet>
   );

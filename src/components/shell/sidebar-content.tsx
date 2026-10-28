@@ -21,11 +21,13 @@ const ACCOUNT_DOT = /^chart-[1-6]$/;
 
 interface SidebarContentProps {
   accounts: SidebarAccount[];
+  /** Locale del usuario (BCP 47) para formatear los saldos. */
+  locale: string;
   /** Se llama al pulsar un enlace (cierra el drawer en móvil). */
   onNavigate?: () => void;
 }
 
-export function SidebarContent({ accounts, onNavigate }: SidebarContentProps) {
+export function SidebarContent({ accounts, locale, onNavigate }: SidebarContentProps) {
   const pathname = usePathname();
   // El mes elegido en la topbar se conserva al cambiar de sección.
   const [month] = useQueryState("month", parseAsString);
@@ -98,7 +100,7 @@ export function SidebarContent({ accounts, onNavigate }: SidebarContentProps) {
                   <span className="truncate">{account.name}</span>
                 </span>
                 <span className="num shrink-0 text-muted-foreground">
-                  {formatMoney(account.balance, { currency: account.currency })}
+                  {formatMoney(account.balance, { currency: account.currency, locale })}
                 </span>
               </li>
             ))}

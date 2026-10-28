@@ -187,25 +187,25 @@ Movimiento: sólo como respuesta a una acción (abrir un sheet, confirmar un gua
 │          ├──────────────────────────────────────────────────────────────────────┤
 │ Resumen  │ ┌──────────────────────┬───────────────┬───────────────┬────────────┐│
 │ Movim.   │ │ Saldo total          │ Ingresos      │ Gastos        │ Ahorro neto││
-│ Cuentas  │ │ 24.380,12 €          │ 4.200,00 €    │ 2.913,40 €    │ 1.286,60 € ││
-│ Presup.  │ │ +3,2 % vs sep  ╱╲╱── │ +0 %   ──╱──  │ −6,1 %  ╲╱╲─  │ 30,6 % tasa││
+│ Cuentas  │ │ $ 16.383.481         │ $ 4.500.000   │ $ 3.670.200   │ $ 829.800  ││
+│ Presup.  │ │ +5,3 % vs sep  ╱╲╱── │ +0 %   ──╱──  │ −4,5 %  ╲╱╲─  │ 18,4 % tasa││
 │ Metas    │ └──────────────────────┴───────────────┴───────────────┴────────────┘│
 │          │ ┌─ Ingresos vs gastos ──── [Mes|Trim|Año] ─┐ ┌─ Salud financiera ────┐ │
-│ ──────── │ │  ▇▅ ▇▆ ▇▄ ▇▅ ▇▆ ▇░                       │ │ Cash flow   +1.286,60 │ │
-│ Cuentas  │ │  barras ingreso/gasto + línea neta       │ │ Tasa ahorro   30,6 %  │ │
-│ • BBVA   │ │  mes actual: proyección punteada         │ │ Fijos ▓▓▓▓▓░░ Variab. │ │
-│ • Visa   │ │                                          │ │ Fin de mes ≈ +940 €   │ │
+│ ──────── │ │  ▇▅ ▇▆ ▇▄ ▇▅ ▇▆ ▇░                       │ │ Cash flow  +$ 829.800 │ │
+│ Cuentas  │ │  barras ingreso/gasto + línea neta       │ │ Tasa ahorro   18,4 %  │ │
+│ • Bancol.│ │  mes actual: proyección punteada         │ │ Fijos ▓▓▓▓▓░░ Variab. │ │
+│ • Nu Ah. │ │                                          │ │ Fin de mes ≈ +658 mil │ │
 │ • Efect. │ └──────────────────────────────────────────┘ └───────────────────────┘ │
-│          │ ┌─ Gasto por categoría ─┐ ┌─ Presupuestos ────────────────────────────┐│
-│          │ │      ◯ donut          │ │ Supermercado  ▓▓▓▓▓▓▓│░░░  312/450   69 % ││
-│          │ │  2.913 € total        │ │ Ocio          ▓▓▓▓▓▓▓▓│▓▓  188/200 ⚠ 94 % ││
-│          │ │  leyenda con %        │ │ Transporte    ▓▓▓│░░░░░░░   61/150   41 % ││
+│ • T. Nu  │ ┌─ Gasto por categoría ─┐ ┌─ Presupuestos ────────────────────────────┐│
+│          │ │      ◯ donut          │ │ Mercado       ▓▓▓▓▓▓▓│░░░ 1,0/1,5 M  69 % ││
+│          │ │  $ 3.670.200 total    │ │ Ocio         ▓▓▓▓▓▓▓▓│▓ 564/600 mil ⚠ 94 %││
+│          │ │  leyenda con %        │ │ Transporte    ▓▓▓│░░░░░░ 164/400 mil  41 %││
 │          │ └───────────────────────┘ │            │ = ritmo esperado hoy (47 %)  ││
 │          │                           └───────────────────────────────────────────┘│
 │          │ ┌─ Últimos movimientos ─────────────────────────── Ver todos ─────────┐│
-│          │ │ 27 oct  Mercadona      Supermercado ✦  BBVA     −64,30 €     ⋯     ││
-│          │ │ 26 oct  Nómina ACME    Salario         BBVA  +4.200,00 €     ⋯     ││
-│          │ │ 25 oct  BBVA → Ahorro  Transferencia          500,00 €       ⋯     ││
+│          │ │ 27 oct  Éxito          Mercado ✦       T. Nu   −$ 186.400    ⋯     ││
+│          │ │ 26 oct  Bancol. → Nu   Transferencia            $ 600.000    ⋯     ││
+│          │ │ 25 oct  Nómina S.A.S.  Nómina          Bancol. +$ 4.500.000  ⋯     ││
 │          │ └─────────────────────────────────────────────────────────────────────┘│
 └──────────┴──────────────────────────────────────────────────────────────────────┘
 ✦ = categoría asignada automáticamente (clic para corregir)

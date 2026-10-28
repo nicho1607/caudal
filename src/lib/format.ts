@@ -1,15 +1,31 @@
+export const DEFAULT_CURRENCY = "COP";
+export const DEFAULT_LOCALE = "es-CO";
+
+/**
+ * Monedas sin unidad menor en la práctica: ISO 4217 da 2 decimales al COP,
+ * pero nadie escribe centavos de peso. Se formatean siempre sin decimales.
+ */
+const ZERO_DECIMAL_CURRENCIES = new Set(["COP", "CLP", "JPY", "KRW", "PYG", "VND", "ISK", "UGX", "XAF", "XOF"]);
+
+export function currencyFractionDigits(currency: string): number {
+  return ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 0 : 2;
+}
+
 const currencyFormatters = new Map<string, Intl.NumberFormat>();
 
 function getFormatter(currency: string, locale: string, compact: boolean) {
   const key = `${locale}:${currency}:${compact}`;
   let fmt = currencyFormatters.get(key);
   if (!fmt) {
+    const digits = currencyFractionDigits(currency);
     fmt = new Intl.NumberFormat(locale, {
       style: "currency",
       currency,
       notation: compact ? "compact" : "standard",
-      maximumFractionDigits: compact ? 1 : 2,
-      minimumFractionDigits: compact ? 0 : 2,
+      // "always": también separa miles en importes de 4 cifras (es-* no lo hace por defecto).
+      useGrouping: "always",
+      maximumFractionDigits: compact ? 1 : digits,
+      minimumFractionDigits: compact ? 0 : digits,
     });
     currencyFormatters.set(key, fmt);
   }
@@ -26,15 +42,22 @@ export interface MoneyFormatOptions {
 
 export function formatMoney(
   value: number,
-  { currency = "USD", locale = "es-ES", compact = false, signed = false }: MoneyFormatOptions = {},
+  {
+    currency = DEFAULT_CURRENCY,
+    locale = DEFAULT_LOCALE,
+    compact = false,
+    signed = false,
+  }: MoneyFormatOptions = {},
 ) {
-  const formatted = getFormatter(currency, locale, compact).format(Math.abs(value));
-  if (value < 0) return `−${formatted}`; // signo menos tipográfico (U+2212)
+  const fmt = getFormatter(currency, locale, compact);
+  const formatted = fmt.format(Math.abs(value));
+  // Signo menos tipográfico (U+2212); sin signo si el redondeo deja "$ 0".
+  if (value < 0 && formatted !== fmt.format(0)) return `−${formatted}`;
   if (signed && value > 0) return `+${formatted}`;
   return formatted;
 }
 
-export function formatPercent(value: number, locale = "es-ES", digits = 1) {
+export function formatPercent(value: number, locale = DEFAULT_LOCALE, digits = 1) {
   return new Intl.NumberFormat(locale, {
     style: "percent",
     maximumFractionDigits: digits,

@@ -3,6 +3,10 @@
 // Idempotente: borra todos los datos del usuario demo y los vuelve a crear en
 // una sola transacción. Determinista: todo el contenido sale de un PRNG con
 // semilla fija (las fechas son relativas a hoy). Ejecutar: `npm run db:seed`.
+//
+// Usuario en Colombia: pesos (COP, sin centavos), es-CO, America/Bogota.
+// Cuentas: Bancolombia Ahorros (nómina y gasto diario), Nu Ahorros (meta de
+// ahorro), Efectivo y Tarjeta Nu.
 import "dotenv/config";
 
 import { randomUUID } from "node:crypto";
@@ -19,7 +23,9 @@ import { createRng } from "../src/lib/prng";
 import { db } from "../src/server/db";
 import { DEMO_USER_EMAIL, DEMO_USER_ID } from "../src/server/demo-user";
 
-const CURRENCY = "EUR";
+const CURRENCY = "COP";
+const LOCALE = "es-CO";
+const TIMEZONE = "America/Bogota";
 const rng = createRng(20261028);
 
 // ─── Fechas (columnas @db.Date → medianoche UTC) ─────────────────────────────
@@ -43,7 +49,7 @@ const START = utc(TY, TM - 6, TODAY.getUTCDate());
 const CURRENT_MONTH_START = utc(TY, TM, 1);
 
 const inRange = (d: Date) => d >= START && d <= TODAY;
-const monthName = new Intl.DateTimeFormat("es-ES", {
+const monthName = new Intl.DateTimeFormat(LOCALE, {
   month: "long",
   timeZone: "UTC",
 });
@@ -54,16 +60,26 @@ function nextMonthly(day: number): Date {
   return thisMonth > TODAY ? thisMonth : utc(TY, TM + 1, day);
 }
 
+// La nómina cae el 25; si hoy es antes del 25, la del mes en curso se adelanta
+// a hoy para que el dashboard muestre siempre un mes con ingresos.
+const PAYDAY = 25;
+const SALARY = 4_500_000;
+const RENT = 1_400_000;
+const NETFLIX = 26_900;
+const MONTHLY_SAVING = 600_000;
+const ATM_WITHDRAWAL = 350_000;
+
 // ─── Catálogo: cuentas, categorías, payees, reglas ───────────────────────────
 
-type AccountKey = "checking" | "savings" | "visa" | "cash";
+type AccountKey = "bancolombia" | "nu" | "card" | "cash";
 
+/** Importes en pesos enteros (COP no usa centavos). */
 const ACCOUNTS: Record<
   AccountKey,
   {
     name: string;
     type: AccountType;
-    initialBalance: number; // céntimos
+    initialBalance: number;
     creditLimit?: number;
     institution?: string;
     last4?: string;
@@ -71,40 +87,40 @@ const ACCOUNTS: Record<
     icon: string;
   }
 > = {
-  checking: {
-    name: "BBVA Cuenta Online",
-    type: "CHECKING",
-    initialBalance: 240_000,
-    institution: "BBVA",
+  bancolombia: {
+    name: "Bancolombia Ahorros",
+    type: "SAVINGS",
+    initialBalance: 3_800_000,
+    institution: "Bancolombia",
     last4: "4821",
     color: "chart-1",
     icon: "landmark",
   },
-  savings: {
-    name: "Ahorro",
+  nu: {
+    name: "Nu Ahorros",
     type: "SAVINGS",
-    initialBalance: 620_000,
-    institution: "BBVA",
+    initialBalance: 6_000_000,
+    institution: "Nu",
     last4: "9034",
     color: "chart-3",
     icon: "piggy-bank",
   },
-  visa: {
-    name: "Visa BBVA",
-    type: "CREDIT_CARD",
-    initialBalance: 0,
-    creditLimit: 300_000,
-    institution: "BBVA",
-    last4: "7712",
-    color: "chart-5",
-    icon: "credit-card",
-  },
   cash: {
     name: "Efectivo",
     type: "CASH",
-    initialBalance: 12_000,
+    initialBalance: 150_000,
     color: "chart-4",
     icon: "wallet",
+  },
+  card: {
+    name: "Tarjeta Nu",
+    type: "CREDIT_CARD",
+    initialBalance: 0,
+    creditLimit: 4_000_000,
+    institution: "Nu",
+    last4: "7712",
+    color: "chart-5",
+    icon: "credit-card",
   },
 };
 
@@ -136,7 +152,7 @@ const CATEGORIES = {
     color: "chart-2",
     icon: "coins",
     children: {
-      intereses: { name: "Intereses", nature: "VARIABLE", icon: "percent" },
+      rendimientos: { name: "Rendimientos", nature: "VARIABLE", icon: "percent" },
       reembolsos: { name: "Reembolsos", nature: "VARIABLE", icon: "undo-2" },
     },
   },
@@ -147,9 +163,9 @@ const CATEGORIES = {
     color: "chart-1",
     icon: "house",
     children: {
-      alquiler: { name: "Alquiler", nature: "FIXED", icon: "key-round" },
-      suministros: { name: "Suministros", nature: "FIXED", icon: "zap" },
-      internet: { name: "Internet y móvil", nature: "FIXED", icon: "wifi" },
+      arriendo: { name: "Arriendo", nature: "FIXED", icon: "key-round" },
+      servicios: { name: "Servicios públicos", nature: "FIXED", icon: "zap" },
+      internet: { name: "Internet y celular", nature: "FIXED", icon: "wifi" },
     },
   },
   alimentacion: {
@@ -159,8 +175,8 @@ const CATEGORIES = {
     color: "chart-5",
     icon: "shopping-cart",
     children: {
-      supermercado: { name: "Supermercado", nature: "VARIABLE", icon: "shopping-basket" },
-      restaurantes: { name: "Restaurantes", nature: "VARIABLE", icon: "utensils" },
+      mercado: { name: "Mercado", nature: "VARIABLE", icon: "shopping-basket" },
+      restaurantes: { name: "Restaurantes y domicilios", nature: "VARIABLE", icon: "utensils" },
     },
   },
   transporte: {
@@ -171,7 +187,7 @@ const CATEGORIES = {
     icon: "bus",
     children: {
       transportePublico: { name: "Transporte público", nature: "FIXED", icon: "train-front" },
-      taxi: { name: "Taxi y VTC", nature: "VARIABLE", icon: "car-taxi-front" },
+      taxi: { name: "Taxi y apps", nature: "VARIABLE", icon: "car-taxi-front" },
     },
   },
   suscripciones: {
@@ -205,7 +221,7 @@ const CATEGORIES = {
     color: "chart-6",
     icon: "heart-pulse",
     children: {
-      farmacia: { name: "Farmacia", nature: "VARIABLE", icon: "pill" },
+      drogueria: { name: "Droguería", nature: "VARIABLE", icon: "pill" },
     },
   },
 } satisfies Record<string, CategoryDef>;
@@ -218,40 +234,43 @@ type CategoryKey = ParentKey | ChildKey;
 
 /** `rule`: patrón (normalizado) de la regla SYSTEM; omitido = sin regla. */
 const PAYEES = {
-  acme: { name: "Acme Ibérica S.L.", category: "nomina" },
-  landlord: { name: "Inmobiliaria Sol", category: "alquiler" },
-  iberdrola: { name: "Iberdrola", category: "suministros", rule: "iberdrola" },
-  canal: { name: "Canal de Isabel II", category: "suministros", rule: "canal de isabel" },
+  employer: { name: "Soluciones Andinas S.A.S.", category: "nomina" },
+  landlord: { name: "Inmobiliaria Los Cerros", category: "arriendo" },
+  codensa: { name: "Enel Codensa", category: "servicios", rule: "codensa" },
+  vanti: { name: "Vanti", category: "servicios", rule: "vanti" },
+  acueducto: { name: "Acueducto de Bogotá", category: "servicios", rule: "acueducto" },
+  claro: { name: "Claro", category: "internet", rule: "claro" },
   movistar: { name: "Movistar", category: "internet", rule: "movistar" },
   netflix: { name: "Netflix", category: "streaming", rule: "netflix" },
   spotify: { name: "Spotify", category: "musica", rule: "spotify" },
-  basicfit: { name: "Basic-Fit", category: "gimnasio", rule: "basic-fit" },
-  mercadona: { name: "Mercadona", category: "supermercado", rule: "mercadona" },
-  lidl: { name: "Lidl", category: "supermercado", rule: "lidl" },
-  carrefour: { name: "Carrefour", category: "supermercado", rule: "carrefour" },
+  smartfit: { name: "Smart Fit", category: "gimnasio", rule: "smart fit" },
+  exito: { name: "Éxito", category: "mercado", rule: "exito" },
+  carulla: { name: "Carulla", category: "mercado", rule: "carulla" },
+  d1: { name: "Tiendas D1", category: "mercado", rule: "d1" },
+  ara: { name: "Tiendas Ara", category: "mercado", rule: "tiendas ara" },
+  rappi: { name: "Rappi", category: "restaurantes", rule: "rappi" },
+  crepes: { name: "Crepes & Waffles", category: "restaurantes" },
+  corrientazo: { name: "Restaurante El Buen Sabor", category: "restaurantes" },
+  juanValdez: { name: "Juan Valdez Café", category: "restaurantes", rule: "juan valdez" },
   uber: { name: "Uber", category: "taxi", rule: "uber" },
-  cabify: { name: "Cabify", category: "taxi", rule: "cabify" },
-  metro: { name: "Metro de Madrid", category: "transportePublico", rule: "metro de madrid" },
-  renfe: { name: "Renfe", category: "transportePublico", rule: "renfe" },
-  glovo: { name: "Glovo", category: "restaurantes", rule: "glovo" },
-  tagliatella: { name: "La Tagliatella", category: "restaurantes" },
-  barManolo: { name: "Bar Casa Manolo", category: "restaurantes" },
-  yelmo: { name: "Yelmo Cines", category: "cine", rule: "yelmo" },
-  ticketmaster: { name: "Ticketmaster", category: "cine", rule: "ticketmaster" },
-  amazon: { name: "Amazon", category: "compras", rule: "amazon" },
-  zara: { name: "Zara", category: "compras" },
-  farmacia: { name: "Farmacia Central", category: "farmacia", rule: "farmacia" },
+  didi: { name: "DiDi", category: "taxi", rule: "didi" },
+  transmilenio: { name: "TransMilenio", category: "transportePublico", rule: "transmilenio" },
+  cineColombia: { name: "Cine Colombia", category: "cine", rule: "cine colombia" },
+  tuboleta: { name: "Tuboleta", category: "cine", rule: "tuboleta" },
+  mercadoLibre: { name: "Mercado Libre", category: "compras", rule: "mercado libre" },
+  falabella: { name: "Falabella", category: "compras" },
+  farmatodo: { name: "Farmatodo", category: "drogueria", rule: "farmatodo" },
 } satisfies Record<string, { name: string; category: CategoryKey; rule?: string }>;
 
 type PayeeKey = keyof typeof PAYEES;
 
-/** Minúsculas, sin acentos ni sufijos societarios ("S.L.", "S.A."). */
+/** Minúsculas, sin acentos ni sufijos societarios ("S.A.S.", "S.A.", "S.L."). */
 function normalizeName(name: string): string {
   return name
     .normalize("NFD")
     .replace(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/\b(s\.?l\.?|s\.?a\.?)$/u, "")
+    .replace(/\b(s\.?a\.?s\.?|s\.?l\.?|s\.?a\.?)$/u, "")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -298,7 +317,7 @@ type Tx = {
   id: string;
   account: AccountKey;
   date: Date;
-  cents: number; // con signo, en céntimos
+  amount: number; // con signo, en pesos enteros
   type: TransactionType;
   category: CategoryKey | null;
   payee: PayeeKey | null;
@@ -309,12 +328,12 @@ type Tx = {
 };
 
 const txs: Tx[] = [];
-const goalContributions: { transactionId: string; cents: number; date: Date }[] = [];
+const goalContributions: { transactionId: string; amount: number; date: Date }[] = [];
 
 function add(opts: {
   account: AccountKey;
   date: Date;
-  cents: number;
+  amount: number;
   payee?: PayeeKey;
   category?: CategoryKey; // explícita = categorización manual
   description?: string;
@@ -333,7 +352,7 @@ function add(opts: {
     id: randomUUID(),
     account: opts.account,
     date: opts.date,
-    cents: opts.cents,
+    amount: opts.amount,
     type: categoryKind[category] === "INCOME" ? "INCOME" : "EXPENSE",
     category,
     payee,
@@ -347,14 +366,14 @@ function add(opts: {
 }
 
 /** Transferencia = dos patas con el mismo transferGroupId que suman cero. */
-function transfer(from: AccountKey, to: AccountKey, date: Date, cents: number, description: string) {
-  if (!inRange(date) || cents <= 0) return null;
+function transfer(from: AccountKey, to: AccountKey, date: Date, amount: number, description: string) {
+  if (!inRange(date) || amount <= 0) return null;
   const group = randomUUID();
   const leg = (account: AccountKey, signed: number): Tx => ({
     id: randomUUID(),
     account,
     date,
-    cents: signed,
+    amount: signed,
     type: "TRANSFER",
     category: null,
     payee: null,
@@ -363,164 +382,186 @@ function transfer(from: AccountKey, to: AccountKey, date: Date, cents: number, d
     recurringRuleId: null,
     ruleOf: null,
   });
-  const out = leg(from, -cents);
-  const inn = leg(to, cents);
+  const out = leg(from, -amount);
+  const inn = leg(to, amount);
   txs.push(out, inn);
   return { out, inn };
 }
 
-const between = (min: number, max: number) => rng.int(min, max);
+/** Entero aleatorio en [min, max] redondeado a `step` pesos (precios reales). */
+const between = (min: number, max: number, step = 100) => Math.round(rng.int(min, max) / step) * step;
 
 for (let offset = -6; offset <= 0; offset++) {
   const d = (day: number) => utc(TY, TM + offset, day);
   const monthDate = d(1);
   const isCurrent = offset === 0;
 
-  // Fijos mensuales
-  add({ account: "checking", date: d(1), cents: -95_000, payee: "landlord", description: "Alquiler piso", recurringRuleId: recurringId.rent });
-  add({ account: "checking", date: d(1), cents: -5_460, payee: "metro", description: "Abono transporte mensual" });
-  add({ account: "checking", date: d(2), cents: -3_990, payee: "basicfit", description: "Cuota Basic-Fit" });
-  add({ account: "visa", date: d(3), cents: -1_099, payee: "spotify", description: "Spotify Premium" });
-  add({ account: "checking", date: d(6), cents: -between(4_800, 9_500), payee: "iberdrola", description: "Factura luz Iberdrola" });
-  add({ account: "checking", date: d(10), cents: -5_500, payee: "movistar", description: "Fibra y móvil Movistar" });
+  // Fijos mensuales (Bancolombia salvo suscripciones en la Tarjeta Nu)
+  add({ account: "bancolombia", date: d(1), amount: -RENT, payee: "landlord", description: "Arriendo apartamento", recurringRuleId: recurringId.rent });
+  add({ account: "bancolombia", date: d(2), amount: -89_900, payee: "smartfit", description: "Mensualidad Smart Fit" });
+  add({ account: "card", date: d(3), amount: -16_900, payee: "spotify", description: "Spotify Premium" });
+  add({ account: "bancolombia", date: d(6), amount: -between(95_000, 165_000), payee: "codensa", description: "Factura energía Enel Codensa" });
+  add({ account: "bancolombia", date: d(9), amount: -between(32_000, 68_000), payee: "vanti", description: "Factura gas Vanti" });
+  add({ account: "bancolombia", date: d(10), amount: -95_900, payee: "claro", description: "Internet hogar Claro" });
+  add({ account: "bancolombia", date: d(12), amount: -55_000, payee: "movistar", description: "Plan celular Movistar" });
   if (monthDate.getUTCMonth() % 2 === 0) {
-    add({ account: "checking", date: d(12), cents: -between(2_800, 4_200), payee: "canal", description: "Factura agua Canal de Isabel II" });
+    add({ account: "bancolombia", date: d(14), amount: -between(85_000, 145_000), payee: "acueducto", description: "Factura agua Acueducto de Bogotá" });
   }
-  add({ account: "visa", date: d(15), cents: -1_299, payee: "netflix", description: "Netflix", recurringRuleId: recurringId.netflix });
+  add({ account: "card", date: d(15), amount: -NETFLIX, payee: "netflix", description: "Netflix", recurringRuleId: recurringId.netflix });
+  const payday = isCurrent && TODAY < d(PAYDAY) ? TODAY : d(PAYDAY);
   add({
-    account: "checking",
-    date: d(27),
-    cents: 265_000,
-    payee: "acme",
+    account: "bancolombia",
+    date: payday,
+    amount: SALARY,
+    payee: "employer",
     description: `Nómina ${monthName.format(monthDate)}`,
     recurringRuleId: recurringId.salary,
   });
 
   // Transferencias mensuales
-  transfer("checking", "cash", d(8), 10_000, "Retirada cajero");
-  const saving = transfer("checking", "savings", d(28), 40_000, "Ahorro mensual");
-  if (saving) goalContributions.push({ transactionId: saving.inn.id, cents: 40_000, date: saving.inn.date });
+  transfer("bancolombia", "cash", d(8), ATM_WITHDRAWAL, "Retiro cajero Bancolombia");
+  const saving = transfer("bancolombia", "nu", d(PAYDAY + 1), MONTHLY_SAVING, "Ahorro mensual a Nu");
+  if (saving) goalContributions.push({ transactionId: saving.inn.id, amount: MONTHLY_SAVING, date: saving.inn.date });
 
-  // Intereses de la cuenta de ahorro (último día del mes)
-  add({ account: "savings", date: d(31), cents: between(300, 700), category: "intereses", description: "Liquidación intereses" });
+  // Rendimientos de Nu Ahorros (último día del mes)
+  add({ account: "nu", date: d(31), amount: between(38_000, 62_000, 1), category: "rendimientos", description: "Rendimientos Nu" });
 
-  // Supermercado
-  const groceryDays = [between(1, 6), between(7, 12), between(13, 18), between(19, 24), between(25, 31)];
-  for (const day of groceryDays) {
-    add({ account: rng.chance(0.7) ? "visa" : "checking", date: d(day), cents: -between(2_500, 8_500), payee: "mercadona" });
+  // Mercado
+  const bigShops = [between(1, 7, 1), between(8, 15, 1), between(16, 23, 1), between(24, 31, 1)];
+  for (const day of bigShops) {
+    add({ account: rng.chance(0.7) ? "card" : "bancolombia", date: d(day), amount: -between(110_000, 290_000), payee: rng.chance(0.6) ? "exito" : "carulla" });
   }
-  for (let i = 0; i < 2; i++) {
-    add({ account: "visa", date: d(between(1, 31)), cents: -between(1_500, 4_500), payee: "lidl" });
-  }
-  if (rng.chance(0.5)) {
-    add({ account: "visa", date: d(between(1, 31)), cents: -between(3_000, 9_000), payee: "carrefour" });
+  for (let i = 0; i < 3; i++) {
+    add({ account: rng.chance(0.5) ? "cash" : "bancolombia", date: d(between(1, 31, 1)), amount: -between(25_000, 85_000), payee: rng.chance(0.6) ? "d1" : "ara" });
   }
 
-  // Restaurantes
-  const meals = between(2, 4);
-  for (let i = 0; i < meals; i++) {
-    const payee = rng.pick(["tagliatella", "barManolo", "glovo"] as const);
-    const account: AccountKey = payee === "barManolo" ? "cash" : "visa";
-    add({ account, date: d(between(1, 31)), cents: -between(1_400, 4_500), payee });
+  // Restaurantes y domicilios
+  const deliveries = between(2, 3, 1);
+  for (let i = 0; i < deliveries; i++) {
+    add({ account: "card", date: d(between(1, 31, 1)), amount: -between(32_000, 72_000), payee: "rappi", description: "Pedido Rappi" });
   }
-  const coffees = between(3, 5);
+  if (rng.chance(0.6)) add({ account: "card", date: d(between(1, 31, 1)), amount: -between(65_000, 130_000), payee: "crepes" });
+  const lunches = between(4, 6, 1);
+  for (let i = 0; i < lunches; i++) {
+    add({ account: "cash", date: d(between(1, 31, 1)), amount: -between(15_000, 22_000), payee: "corrientazo", description: "Almuerzo corrientazo" });
+  }
+  const coffees = between(2, 4, 1);
   for (let i = 0; i < coffees; i++) {
-    add({ account: "cash", date: d(between(1, 31)), cents: -between(180, 900), payee: "barManolo", description: "Café y tostada" });
+    add({ account: "card", date: d(between(1, 31, 1)), amount: -between(8_000, 18_000), payee: "juanValdez" });
   }
 
   // Transporte
-  const rides = between(1, 3);
-  for (let i = 0; i < rides; i++) {
-    add({ account: "visa", date: d(between(1, 31)), cents: -between(700, 2_200), payee: rng.chance(0.6) ? "uber" : "cabify" });
+  const topUps = between(3, 4, 1);
+  for (let i = 0; i < topUps; i++) {
+    add({ account: "cash", date: d(between(1, 31, 1)), amount: -between(30_000, 50_000, 10_000), payee: "transmilenio", description: "Recarga tarjeta TransMilenio" });
   }
-  if (rng.chance(0.4)) {
-    add({ account: "visa", date: d(between(1, 31)), cents: -between(1_500, 4_500), payee: "renfe", description: "Renfe Cercanías / Media Distancia" });
+  const rides = between(1, 3, 1);
+  for (let i = 0; i < rides; i++) {
+    add({ account: "card", date: d(between(1, 31, 1)), amount: -between(12_000, 35_000), payee: rng.chance(0.6) ? "uber" : "didi" });
   }
 
   // Ocio
-  if (rng.chance(0.7)) add({ account: "visa", date: d(between(1, 31)), cents: -between(900, 1_900), payee: "yelmo" });
-  const orders = between(1, 2);
+  if (rng.chance(0.7)) add({ account: "card", date: d(between(1, 31, 1)), amount: -between(24_000, 56_000), payee: "cineColombia" });
+  const orders = between(1, 2, 1);
   for (let i = 0; i < orders; i++) {
-    add({ account: "visa", date: d(between(1, 31)), cents: -between(1_200, 6_000), payee: "amazon", description: "Amazon.es pedido" });
+    add({ account: "card", date: d(between(1, 31, 1)), amount: -between(45_000, 180_000), payee: "mercadoLibre", description: "Compra Mercado Libre" });
   }
-  if (rng.chance(0.4)) add({ account: "visa", date: d(between(1, 31)), cents: -between(2_500, 7_000), payee: "zara" });
-  if (rng.chance(0.2)) add({ account: "visa", date: d(between(1, 31)), cents: -between(3_500, 8_000), payee: "ticketmaster", description: "Entradas concierto" });
+  if (rng.chance(0.35)) add({ account: "card", date: d(between(1, 31, 1)), amount: -between(90_000, 260_000), payee: "falabella" });
+  if (rng.chance(0.2)) add({ account: "card", date: d(between(1, 31, 1)), amount: -between(150_000, 320_000), payee: "tuboleta", description: "Boletas concierto Tuboleta" });
 
   // Salud
-  if (rng.chance(0.5)) add({ account: rng.chance(0.5) ? "cash" : "visa", date: d(between(1, 31)), cents: -between(500, 2_500), payee: "farmacia" });
+  if (rng.chance(0.5)) add({ account: rng.chance(0.5) ? "cash" : "card", date: d(between(1, 31, 1)), amount: -between(18_000, 85_000), payee: "farmatodo" });
 
   // Ingresos extra
   if (!isCurrent && rng.chance(0.35)) {
-    add({ account: "checking", date: d(18), cents: between(30_000, 70_000), category: "freelance", description: "Factura proyecto freelance" });
+    add({ account: "bancolombia", date: d(18), amount: between(700_000, 1_600_000, 10_000), category: "freelance", description: "Cuenta de cobro proyecto freelance" });
   }
 
   // Eventos puntuales
   if (offset === -3) {
-    add({ account: "visa", date: d(14), cents: -18_500, category: "viajes", description: "Hotel Valencia (2 noches)" });
-    add({ account: "visa", date: d(13), cents: -6_380, payee: "renfe", category: "viajes", description: "Renfe AVE Madrid–Valencia" });
+    add({ account: "card", date: d(13), amount: -486_000, category: "viajes", description: "Avianca Bogotá–Cartagena" });
+    add({ account: "card", date: d(14), amount: -720_000, category: "viajes", description: "Hotel Cartagena (2 noches)" });
   }
   if (offset === -2) {
-    // Devolución: categorizada a mano, no por la regla de Amazon.
-    add({ account: "visa", date: d(20), cents: 2_499, payee: "amazon", category: "reembolsos", description: "Devolución Amazon.es" });
+    // Devolución: categorizada a mano, no por la regla de Mercado Libre.
+    add({ account: "card", date: d(20), amount: 89_900, payee: "mercadoLibre", category: "reembolsos", description: "Devolución Mercado Libre" });
   }
 }
 
 const byDate = (a: Tx, b: Tx) => a.date.getTime() - b.date.getTime();
 
-// El efectivo no puede quedar en negativo: si no alcanza, se paga con la Visa.
+// El efectivo no puede quedar en negativo: si no alcanza, se paga con la Tarjeta Nu.
 {
   let cash = ACCOUNTS.cash.initialBalance;
   for (const tx of [...txs].sort(byDate)) {
     if (tx.account !== "cash") continue;
-    if (tx.cents < 0 && cash + tx.cents < 0) {
-      tx.account = "visa";
+    if (tx.amount < 0 && cash + tx.amount < 0) {
+      tx.account = "card";
       continue;
     }
-    cash += tx.cents;
+    cash += tx.amount;
   }
 }
 
-// Presupuestos (céntimos). Alimentación queda entre el 85 % y el 95 % este mes
+// Presupuestos (pesos). Alimentación queda entre el 85 % y el 95 % este mes
 // para que el dashboard muestre una alerta al 80 %.
-const BUDGETS: { category: ParentKey; cents: number }[] = [
-  { category: "alimentacion", cents: 50_000 },
-  { category: "transporte", cents: 15_000 },
-  { category: "ocio", cents: 25_000 },
-  { category: "salud", cents: 6_000 },
+const BUDGETS: { category: ParentKey; amount: number }[] = [
+  { category: "alimentacion", amount: 1_500_000 },
+  { category: "transporte", amount: 400_000 },
+  { category: "ocio", amount: 600_000 },
+  { category: "salud", amount: 150_000 },
 ];
 {
   const food = BUDGETS[0];
   const isFood = (tx: Tx) =>
     tx.date >= CURRENT_MONTH_START && tx.category !== null && (tx.category === food.category || parentOf[tx.category] === food.category);
-  const spent = () => -txs.filter(isFood).reduce((s, tx) => s + tx.cents, 0);
-  const max = Math.round(food.cents * 0.95);
-  const target = Math.round(food.cents * 0.88);
+  const spent = () => -txs.filter(isFood).reduce((s, tx) => s + tx.amount, 0);
+  const max = Math.round(food.amount * 0.95);
+  const target = Math.round(food.amount * 0.88);
   // Si se pasa, se quitan las compras más recientes del mes.
   while (spent() > max) {
     const latest = txs.filter(isFood).sort(byDate).at(-1)!;
     txs.splice(txs.indexOf(latest), 1);
   }
-  if (spent() < Math.round(food.cents * 0.85)) {
-    add({ account: "visa", date: new Date(TODAY.getTime() - DAY_MS), cents: -(target - spent()), payee: "mercadona" });
+  if (spent() < Math.round(food.amount * 0.85)) {
+    add({ account: "card", date: new Date(TODAY.getTime() - DAY_MS), amount: -(target - spent()), payee: "exito" });
   }
 }
 
-// Pago de la Visa: el día 5 se liquida desde la cuenta corriente el saldo
+// Pago de la Tarjeta Nu: el día 5 se paga desde Bancolombia el saldo
 // acumulado hasta fin del mes anterior.
 for (let offset = -5; offset <= 0; offset++) {
   const payDay = utc(TY, TM + offset, 5);
   const statementEnd = utc(TY, TM + offset, 1);
   const owed = -txs
-    .filter((tx) => tx.account === "visa" && tx.date < statementEnd)
-    .reduce((s, tx) => s + tx.cents, 0);
-  transfer("checking", "visa", payDay, owed, "Pago tarjeta Visa");
+    .filter((tx) => tx.account === "card" && tx.date < statementEnd)
+    .reduce((s, tx) => s + tx.amount, 0);
+  transfer("bancolombia", "card", payDay, owed, "Pago Tarjeta Nu");
 }
 
 txs.sort(byDate);
 
+// Invariante: Bancolombia y Efectivo nunca quedan en negativo (por día, con
+// los ingresos del día antes que los gastos).
+for (const key of ["bancolombia", "cash"] as const) {
+  let balance = ACCOUNTS[key].initialBalance;
+  const own = txs.filter((tx) => tx.account === key);
+  for (const [i, tx] of own.entries()) {
+    balance += tx.amount;
+    const endOfDay = i === own.length - 1 || own[i + 1].date.getTime() !== tx.date.getTime();
+    if (endOfDay && balance < 0) {
+      throw new Error(`Saldo negativo en ${ACCOUNTS[key].name} el ${tx.date.toISOString().slice(0, 10)}: ${balance}`);
+    }
+  }
+}
+
 // ─── Persistencia ────────────────────────────────────────────────────────────
 
-const money = (cents: number) => (cents / 100).toFixed(2);
+/** Decimal como string; COP en pesos enteros. */
+const money = (pesos: number) => {
+  if (!Number.isInteger(pesos)) throw new Error(`Importe con decimales: ${pesos}`);
+  return String(pesos);
+};
 
 async function main() {
   const recentCutoff = new Date(TODAY.getTime() - DAY_MS);
@@ -547,10 +588,10 @@ async function main() {
         data: {
           id: DEMO_USER_ID,
           email: DEMO_USER_EMAIL,
-          name: "Lucía Martín",
+          name: "Camila Restrepo",
           baseCurrency: CURRENCY,
-          locale: "es-ES",
-          timezone: "Europe/Madrid",
+          locale: LOCALE,
+          timezone: TIMEZONE,
           weekStartsOn: 1,
         },
       });
@@ -634,28 +675,28 @@ async function main() {
           {
             id: recurringId.salary,
             userId: DEMO_USER_ID,
-            accountId: accountId.checking,
+            accountId: accountId.bancolombia,
             categoryId: categoryId.nomina,
             name: "Nómina",
             type: "INCOME",
-            amount: money(265_000),
+            amount: money(SALARY),
             currency: CURRENCY,
-            description: "Nómina Acme Ibérica",
+            description: "Nómina Soluciones Andinas",
             frequency: "MONTHLY",
-            dayOfMonth: 27,
+            dayOfMonth: PAYDAY,
             startDate: firstOf(recurringId.salary),
-            nextRunAt: nextMonthly(27),
+            nextRunAt: nextMonthly(PAYDAY),
           },
           {
             id: recurringId.rent,
             userId: DEMO_USER_ID,
-            accountId: accountId.checking,
-            categoryId: categoryId.alquiler,
-            name: "Alquiler",
+            accountId: accountId.bancolombia,
+            categoryId: categoryId.arriendo,
+            name: "Arriendo",
             type: "EXPENSE",
-            amount: money(-95_000),
+            amount: money(-RENT),
             currency: CURRENCY,
-            description: "Alquiler piso",
+            description: "Arriendo apartamento",
             frequency: "MONTHLY",
             dayOfMonth: 1,
             startDate: firstOf(recurringId.rent),
@@ -664,11 +705,11 @@ async function main() {
           {
             id: recurringId.netflix,
             userId: DEMO_USER_ID,
-            accountId: accountId.visa,
+            accountId: accountId.card,
             categoryId: categoryId.streaming,
             name: "Netflix",
             type: "EXPENSE",
-            amount: money(-1_299),
+            amount: money(-NETFLIX),
             currency: CURRENCY,
             description: "Netflix",
             frequency: "MONTHLY",
@@ -689,11 +730,11 @@ async function main() {
           recurringRuleId: t.recurringRuleId,
           transferGroupId: t.transferGroupId,
           type: t.type,
-          status: (t.account === "visa" && t.date >= recentCutoff ? "PENDING" : "CLEARED") as TransactionStatus,
+          status: (t.account === "card" && t.date >= recentCutoff ? "PENDING" : "CLEARED") as TransactionStatus,
           date: t.date,
-          amount: money(t.cents),
+          amount: money(t.amount),
           currency: CURRENCY,
-          amountBase: money(t.cents),
+          amountBase: money(t.amount),
           fxRate: "1",
           description: t.description,
           autoCategorized: t.ruleOf !== null,
@@ -706,7 +747,7 @@ async function main() {
           userId: DEMO_USER_ID,
           categoryId: categoryId[b.category],
           period: "MONTHLY" as const,
-          amount: money(b.cents),
+          amount: money(b.amount),
           alertThreshold: "0.80",
           startDate: utc(START.getUTCFullYear(), START.getUTCMonth(), 1),
         })),
@@ -716,12 +757,12 @@ async function main() {
         data: {
           id: goalId,
           userId: DEMO_USER_ID,
-          linkedAccountId: accountId.savings,
+          linkedAccountId: accountId.nu,
           name: "Fondo de emergencia",
-          targetAmount: money(1_200_000),
+          targetAmount: money(15_000_000),
           currency: CURRENCY,
-          targetDate: utc(TY + 1, 5, 30),
-          monthlyPlan: money(40_000),
+          targetDate: utc(TY + 1, 11, 31),
+          monthlyPlan: money(MONTHLY_SAVING),
           color: "chart-3",
           icon: "shield",
         },
@@ -730,7 +771,7 @@ async function main() {
         data: goalContributions.map((c) => ({
           goalId,
           transactionId: c.transactionId,
-          amount: money(c.cents),
+          amount: money(c.amount),
           date: c.date,
           note: "Ahorro mensual",
         })),

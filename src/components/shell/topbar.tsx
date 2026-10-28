@@ -24,10 +24,10 @@ function Kbd({ children, className }: { children: string; className?: string }) 
 }
 
 // Búsqueda (⌘K) y "Nueva" (N) quedan inertes hasta QA-001 (paleta + Quick Add).
-export function Topbar({ accounts }: { accounts: SidebarAccount[] }) {
+export function Topbar({ accounts, locale }: { accounts: SidebarAccount[]; locale: string }) {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-backdrop-filter:bg-background/80 md:px-6">
-      <MobileNav accounts={accounts} />
+      <MobileNav accounts={accounts} locale={locale} />
       <Suspense fallback={<div className="h-8 w-40" />}>
         <MonthSwitcher />
       </Suspense>

@@ -144,7 +144,7 @@
         "DASH-001"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "User request 2026-10-28. Supersedes DASH-002's note about useGrouping (that is handled here)."
     },
     {

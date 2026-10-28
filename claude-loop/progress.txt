@@ -8,6 +8,17 @@
 - DB: import `db` from `@/server/db` (only in src/server); types/enums from `@/generated/prisma/client`. Hand-written SQL migrations: `prisma migrate dev --create-only --name x`, edit, then `prisma migrate dev`. See prisma/AGENTS.md.
 - API: Route Handlers use `handler()` from `@/server/http` (session user + zod + error mapping); see src/server/AGENTS.md. Client data: query keys only from `queryKeys` in `@/lib/query-keys`; RSC prefetch with `getQueryClient()` from `@/lib/query-client` (same defaults as the browser, staleTime 60 s). Root layout provides NuqsAdapter + QueryProvider.
 - Dashboard math: pure helpers in `src/server/services/dashboard.calc.ts` (ISO date strings, user-tz "today"); services only query + map. Read currency/locale/timezone from the user record, never hard-code.
+- Money formatting: `formatMoney`/`formatPercent` from `@/lib/format` default to COP / es-CO; always pass the user's `currency` and `locale` (from SessionUser or the DTO) — the shell gets `locale` as a prop from the (app) layout. COP/CLP/JPY… format with 0 decimals; grouping is "always". Intl output uses NBSP between `## Codebase Patterns
+- Next.js 16.4 / React 19.3 / Tailwind v4 via `@tailwindcss/turbopack` loader in next.config.ts (no postcss config). Read `node_modules/next/dist/docs/` before using unfamiliar Next APIs.
+- shadcn style is `radix-nova` (radix-ui umbrella pkg, `cn` from the `cn` package in src/lib/utils.ts). Add components with `npx shadcn@latest add <name> -y < /dev/null`; ALWAYS diff src/app/globals.css afterwards — shadcn init overwrote the design tokens once.
+- Type layout/page props explicitly; Next's global `LayoutProps`/`PageProps` only exist after `next dev/build` typegen, so `tsc --noEmit` fails on a clean checkout.
+- Tests: Vitest + jsdom, files in `tests/unit/**/*.test.ts[x]` or colocated `src/**/*.test.ts[x]`; run one with `npx vitest run <path>`.
+- `postinstall` runs `prisma generate` (client in src/generated/prisma, gitignored).
+- Root layout already provides ThemeProvider (class), TooltipProvider and `<Toaster />` (sonner) — don't add them again in nested layouts.
+- DB: import `db` from `@/server/db` (only in src/server); types/enums from `@/generated/prisma/client`. Hand-written SQL migrations: `prisma migrate dev --create-only --name x`, edit, then `prisma migrate dev`. See prisma/AGENTS.md.
+- API: Route Handlers use `handler()` from `@/server/http` (session user + zod + error mapping); see src/server/AGENTS.md. Client data: query keys only from `queryKeys` in `@/lib/query-keys`; RSC prefetch with `getQueryClient()` from `@/lib/query-client` (same defaults as the browser, staleTime 60 s). Root layout provides NuqsAdapter + QueryProvider.
+- Dashboard math: pure helpers in `src/server/services/dashboard.calc.ts` (ISO date strings, user-tz "today"); services only query + map. Read currency/locale/timezone from the user record, never hard-code.
+ and the amount — normalize in tests.
 - Demo data: `npm run db:seed` (idempotent, rerunnable). Demo user id = `DEMO_USER_ID` from `@/server/demo-user`. Deterministic randomness: `createRng(seed)` from `@/lib/prng`.
 
 ## 2026-10-28 - SETUP-001
@@ -89,4 +100,16 @@
   - Recent transactions include both legs of a transfer (each leg is a row); the UI may want to collapse by transferGroupId.
   - Only MONTHLY budgets are returned; other periods need their own period window.
   - initialBalance and recurring amounts are summed as base currency (no FX service yet; all seed accounts are in the base currency).
+---
+
+## 2026-10-28 - LOC-001
+- Demo user switched to Colombia: Camila Restrepo, COP, es-CO, America/Bogota. Accounts: Bancolombia Ahorros (SAVINGS, nómina 4.500.000 on the 25th, main spending), Nu Ahorros (SAVINGS, goal "Fondo de emergencia" 15.000.000, 600.000/month from Bancolombia on the 26th), Efectivo (CASH, 350.000 ATM on the 8th), Tarjeta Nu (CREDIT_CARD, limit 4.000.000, paid on the 5th from Bancolombia). Arriendo 1.400.000. Colombian payees + 21 SYSTEM rules (Éxito, Carulla, D1, Ara, Rappi, Juan Valdez, Uber, DiDi, TransMilenio, Netflix, Spotify, Smart Fit, Claro, Movistar, Enel Codensa, Vanti, Acueducto, Cine Colombia, Tuboleta, Mercado Libre, Farmatodo). Categories adapted (Arriendo, Servicios públicos, Internet y celular, Mercado, Restaurantes y domicilios, Taxi y apps, Droguería, Rendimientos). Budgets: Alimentación 1.500.000 (86.7 % this month), Transporte 400.000, Ocio 600.000, Salud 150.000. Amounts are whole pesos.
+- src/lib/format.ts: defaults COP/es-CO, zero-decimal currency set, useGrouping "always", no "−$ 0". Sidebar/topbar/mobile nav now take the user's locale.
+- Files: prisma/seed.ts, prisma/AGENTS.md, src/lib/format.ts, src/components/shell/{sidebar-content,mobile-nav,topbar}.tsx, src/app/(app)/layout.tsx, tests/unit/{format,http}.test.ts, docs/ARQUITECTURA.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest (40 tests), db:seed twice (273 tx), psql: 18 transfer groups all 2 legs summing 0, no non-integer amounts, nómina every month May–Oct (Oct income 4.500.000), Bancolombia min balance 1.197.800, Efectivo min 15.300; GET /api/v1/dashboard on :3123 returns currency COP / locale es-CO; sidebar in Chrome shows the four accounts in COP, no console errors.
+- **Learnings for future iterations:**
+  - Intl gives COP 2 fraction digits (ISO 4217), so 0 decimals must be forced explicitly.
+  - es-* locales skip the thousands separator for 4-digit numbers unless useGrouping is "always".
+  - dashboard health.projectedMonthEnd can be fractional (e.g. 3842136.67); format it, don't display raw.
+  - "Bancolombia Ahorros" truncates in the 256 px sidebar next to a 7-digit balance (truncate class works as intended).
 ---

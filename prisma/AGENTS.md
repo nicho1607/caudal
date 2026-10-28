@@ -13,4 +13,6 @@
 - The demo user id/email live in `src/server/demo-user.ts` (`DEMO_USER_ID`, `DEMO_USER_EMAIL`).
 - `Transaction.account` is `onDelete: Restrict`: deleting a user with transactions directly fails — delete the user's transactions first.
 - Seed rows get client-generated ids (`randomUUID()`) so links (transfers, recurring rules, goal contributions, rule hits) can be built before `createMany`.
-- Money in the seed is computed in integer cents and passed to Prisma as `(cents / 100).toFixed(2)` strings.
+- The demo user is Colombian (COP, es-CO, America/Bogota). Seed money is whole pesos (COP has no practical minor unit): integers passed to Prisma as strings via `money()`, which throws on decimals.
+- The seed asserts its own invariants at build time (no negative Bancolombia/Efectivo end-of-day balance); if you change amounts and it throws, rebalance instead of removing the check. Payroll lands on the 25th, moved to today in the current month if today is earlier, so the dashboard always shows a month with income.
+- SYSTEM rule patterns are CONTAINS on the normalized payee name: avoid short patterns that match inside other names (e.g. use `tiendas ara`, not `ara`).

@@ -6,9 +6,9 @@ const sessionUser = {
   id: "5e3d0c1a-7b2f-4c8e-9a6d-2f1b0e9c4d7a",
   email: "demo@caudal.app",
   name: "Demo",
-  baseCurrency: "EUR",
-  locale: "es-ES",
-  timezone: "Europe/Madrid",
+  baseCurrency: "COP",
+  locale: "es-CO",
+  timezone: "America/Bogota",
   weekStartsOn: 1,
 };
 

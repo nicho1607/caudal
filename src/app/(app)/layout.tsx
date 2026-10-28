@@ -15,10 +15,10 @@ export default async function AppLayout({ children }: Readonly<{ children: React
   return (
     <div className="flex min-h-svh w-full">
       <aside className="sticky top-0 hidden h-svh w-64 shrink-0 overflow-y-auto border-r bg-sidebar md:block">
-        <SidebarContent accounts={accounts} />
+        <SidebarContent accounts={accounts} locale={user.locale} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar accounts={accounts} />
+        <Topbar accounts={accounts} locale={user.locale} />
         <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-6 md:px-6">{children}</main>
       </div>
     </div>

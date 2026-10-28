@@ -35,7 +35,9 @@
         "Second migration enables pg_trgm and creates the GIN trigram index on transactions (description || notes) as noted in schema.prisma",
         "Typecheck passes"
       ],
-      "dependsOn": ["SETUP-001"],
+      "dependsOn": [
+        "SETUP-001"
+      ],
       "priority": 2,
       "passes": true,
       "notes": "Read .claude skill prisma-upgrade-v7 references (driver-adapters, prisma-config) if unsure. If .env is missing or DB unreachable, return a blocker — do not invent credentials."
@@ -54,7 +56,9 @@
         "Budgets (monthly) for 4 expense categories, one of them above 80 % this month; recurring rules for salary, rent, Netflix; one savings goal with contributions",
         "Typecheck passes; seed runs without errors"
       ],
-      "dependsOn": ["DB-001"],
+      "dependsOn": [
+        "DB-001"
+      ],
       "priority": 3,
       "passes": true,
       "notes": "Use a seeded PRNG so data is deterministic."
@@ -71,7 +75,9 @@
         "Unit test for handler error mapping",
         "Typecheck and tests pass"
       ],
-      "dependsOn": ["SETUP-001"],
+      "dependsOn": [
+        "SETUP-001"
+      ],
       "priority": 4,
       "passes": true,
       "notes": ""
@@ -90,7 +96,9 @@
         "Typecheck passes",
         "Verify in browser (light, dark, 375 px) and take screenshots"
       ],
-      "dependsOn": ["SETUP-001"],
+      "dependsOn": [
+        "SETUP-001"
+      ],
       "priority": 5,
       "passes": true,
       "notes": ""
@@ -108,10 +116,36 @@
         "useDashboard hook in src/features/dashboard/hooks",
         "Typecheck and tests pass; curl against dev server returns seeded data"
       ],
-      "dependsOn": ["DB-002", "CORE-001"],
+      "dependsOn": [
+        "DB-002",
+        "CORE-001"
+      ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": ""
+    },
+    {
+      "id": "LOC-001",
+      "title": "Switch demo data and formatting to Colombian pesos (COP, es-CO)",
+      "description": "As a Colombian user, I want amounts in pesos and my real kind of accounts (Bancolombia, Nu) so the demo reflects how I manage money.",
+      "acceptanceCriteria": [
+        "Demo user: baseCurrency COP, locale es-CO, timezone America/Bogota",
+        "Seed accounts replaced by: 'Bancolombia Ahorros' (SAVINGS, receives salary, main spending account), 'Nu Ahorros' (SAVINGS, linked to the savings goal, monthly transfer from Bancolombia), 'Efectivo' (CASH, monthly ATM withdrawal from Bancolombia), 'Tarjeta Nu' (CREDIT_CARD, realistic creditLimit e.g. 4.000.000 COP, paid monthly from Bancolombia). All in COP",
+        "All amounts realistic for Colombia (e.g. salary ~4.500.000, rent/arriendo ~1.400.000, budgets, goal target ~15.000.000 COP); amounts are whole pesos (no cents)",
+        "Colombian payees and SYSTEM categorization rules (e.g. Éxito, Carulla, D1, Ara, Rappi, Uber, DiDi, TransMilenio, Netflix, Spotify, Claro, EPM/Codensa/Vanti, Movistar, Farmatodo, Cine Colombia); category names adapted where needed (e.g. Arriendo, Servicios públicos)",
+        "Seed invariants still hold: idempotent, deterministic, transfer legs sum to zero, no negative Bancolombia/Efectivo running balance, one budget above 80 % this month",
+        "src/lib/format.ts: defaults currency COP / locale es-CO; currencies with no practical minor unit (COP, CLP, JPY…) format with 0 decimals; useGrouping 'always' so 4-digit amounts get a separator; tests updated (e.g. formatMoney(5555000) → '$ 5.555.000' style per es-CO Intl output, negative with U+2212)",
+        "Any hard-coded '€', 'EUR' or 'es-ES' in src/ (sidebar, shell, services, tests) replaced by the user's currency/locale",
+        "docs/ARQUITECTURA.md wireframe example amounts and account names updated to COP / Bancolombia / Nu",
+        "npm run db:seed runs twice cleanly; typecheck and tests pass",
+        "Verify in browser: sidebar shows the four accounts with COP balances; take a screenshot"
+      ],
+      "dependsOn": [
+        "DASH-001"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "User request 2026-10-28. Supersedes DASH-002's note about useGrouping (that is handled here)."
     },
     {
       "id": "DASH-002",
@@ -125,10 +159,14 @@
         "Typecheck passes",
         "Verify in browser with seeded data (light + dark + mobile) and take screenshots"
       ],
-      "dependsOn": ["DASH-001", "SHELL-001"],
-      "priority": 7,
+      "dependsOn": [
+        "DASH-001",
+        "LOC-001",
+        "SHELL-001"
+      ],
+      "priority": 8,
       "passes": false,
-      "notes": ""
+      "notes": "Money formatting (COP, grouping) is already handled by LOC-001."
     },
     {
       "id": "DASH-003",
@@ -142,8 +180,10 @@
         "Typecheck passes",
         "Verify in browser and take screenshots"
       ],
-      "dependsOn": ["DASH-002"],
-      "priority": 8,
+      "dependsOn": [
+        "DASH-002"
+      ],
+      "priority": 9,
       "passes": false,
       "notes": ""
     },
@@ -158,8 +198,10 @@
         "Typecheck passes",
         "Verify in browser (seeded budget above 80 % shows warning) and take screenshots"
       ],
-      "dependsOn": ["DASH-002"],
-      "priority": 9,
+      "dependsOn": [
+        "DASH-002"
+      ],
+      "priority": 10,
       "passes": false,
       "notes": "The pace marker is the signature element of the design — see docs §3."
     },
@@ -175,8 +217,11 @@
         "Unit tests for normalize and rule ordering (pure matching function separated from DB)",
         "Typecheck and tests pass"
       ],
-      "dependsOn": ["DB-002", "CORE-001"],
-      "priority": 10,
+      "dependsOn": [
+        "DB-002",
+        "CORE-001"
+      ],
+      "priority": 11,
       "passes": false,
       "notes": ""
     },
@@ -193,8 +238,10 @@
         "Service-level tests for sign handling and transfer legs",
         "Typecheck and tests pass"
       ],
-      "dependsOn": ["CAT-001"],
-      "priority": 11,
+      "dependsOn": [
+        "CAT-001"
+      ],
+      "priority": 12,
       "passes": false,
       "notes": ""
     },
@@ -210,8 +257,11 @@
         "Typecheck passes",
         "Verify in browser: delete then undo restores the row; take screenshots"
       ],
-      "dependsOn": ["DASH-002", "TXN-001"],
-      "priority": 12,
+      "dependsOn": [
+        "DASH-002",
+        "TXN-001"
+      ],
+      "priority": 13,
       "passes": false,
       "notes": ""
     },
@@ -227,8 +277,10 @@
         "Typecheck passes",
         "Verify in browser: filter + search + reload keeps filters; take screenshots"
       ],
-      "dependsOn": ["DASH-005"],
-      "priority": 13,
+      "dependsOn": [
+        "DASH-005"
+      ],
+      "priority": 14,
       "passes": false,
       "notes": ""
     },
@@ -245,8 +297,11 @@
         "Typecheck and tests pass",
         "Verify in browser using only the keyboard; take screenshots"
       ],
-      "dependsOn": ["TXN-001", "SHELL-001"],
-      "priority": 14,
+      "dependsOn": [
+        "TXN-001",
+        "SHELL-001"
+      ],
+      "priority": 15,
       "passes": false,
       "notes": ""
     },
@@ -261,8 +316,11 @@
         "Typecheck passes",
         "Verify in browser; take screenshots"
       ],
-      "dependsOn": ["TXN-001", "SHELL-001"],
-      "priority": 15,
+      "dependsOn": [
+        "TXN-001",
+        "SHELL-001"
+      ],
+      "priority": 16,
       "passes": false,
       "notes": ""
     },
@@ -276,8 +334,11 @@
         "Typecheck passes",
         "Verify in browser; take screenshots"
       ],
-      "dependsOn": ["CAT-001", "SHELL-001"],
-      "priority": 16,
+      "dependsOn": [
+        "CAT-001",
+        "SHELL-001"
+      ],
+      "priority": 17,
       "passes": false,
       "notes": ""
     }

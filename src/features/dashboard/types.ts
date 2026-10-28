@@ -9,6 +9,8 @@ export interface SparkPoint {
   value: number;
 }
 
+// totalBalance.sparkline: saldo al cierre de cada día. monthIncome/monthExpense/
+// netSavings.sparkline: suma móvil de 30 días que termina en cada punto.
 export interface Kpi {
   value: number;
   previous: number;
@@ -63,11 +65,13 @@ export interface RecentTransaction {
   amount: number;
   currency: string;
   status: "PENDING" | "CLEARED" | "RECONCILED";
+  autoCategorized: boolean; // categoría asignada por una regla (marcador ✦)
 }
 
 export interface DashboardData {
   currency: string;
   locale: string;
+  month: string; // yyyy-mm al que corresponden los agregados
   kpis: {
     totalBalance: Kpi;
     monthIncome: Kpi;

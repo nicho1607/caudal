@@ -7,6 +7,7 @@
 - Root layout already provides ThemeProvider (class), TooltipProvider and `<Toaster />` (sonner) — don't add them again in nested layouts.
 - DB: import `db` from `@/server/db` (only in src/server); types/enums from `@/generated/prisma/client`. Hand-written SQL migrations: `prisma migrate dev --create-only --name x`, edit, then `prisma migrate dev`. See prisma/AGENTS.md.
 - API: Route Handlers use `handler()` from `@/server/http` (session user + zod + error mapping); see src/server/AGENTS.md. Client data: query keys only from `queryKeys` in `@/lib/query-keys`; RSC prefetch with `getQueryClient()` from `@/lib/query-client` (same defaults as the browser, staleTime 60 s). Root layout provides NuqsAdapter + QueryProvider.
+- Dashboard math: pure helpers in `src/server/services/dashboard.calc.ts` (ISO date strings, user-tz "today"); services only query + map. Read currency/locale/timezone from the user record, never hard-code.
 - Demo data: `npm run db:seed` (idempotent, rerunnable). Demo user id = `DEMO_USER_ID` from `@/server/demo-user`. Deterministic randomness: `createRng(seed)` from `@/lib/prng`.
 
 ## 2026-10-28 - SETUP-001
@@ -74,4 +75,18 @@
   - es-ES Intl doesn't group 4-digit numbers ("5555,07 €"); that's CLDR's minimumGroupingDigits=2, not a bug in formatMoney.
   - shadcn outline Button has `dark:bg-input/30`; overriding background on a breakpoint needs `max-sm:dark:bg-transparent` too.
   - SheetContent's built-in close button has an English sr-only label; pass `showCloseButton={false}` and render a Spanish `SheetClose`.
+---
+
+## 2026-10-28 - DASH-001
+- `getDashboard(userId, { month?, today? })` in src/server/services/dashboard.service.ts → DashboardData. Queries: user, net-worth accounts, 2 balance aggregates, raw SQL daily totals (90 days, by type/fixed/recurring/net-worth), raw SQL monthly totals (Jan of year−2 → month end, transfers excluded), expense groupBy by category (month), categories, MONTHLY budgets, active recurring rules, last 8 transactions of the month — all in parallel.
+- Pure helpers in dashboard.calc.ts (19 tests): monthContext, savingsRate, budgetPace, projectMonthEnd (docs §1: real + pending recurring + 90-day variable daily average × remaining days; variable = expenses with non-FIXED category and no recurringRuleId, so recurring isn't double-counted), pendingOccurrences (from nextRunAt, day clamped), bucketCashflow (6 months / 4 calendar quarters / 3 years, zero-filled), rollingSumSeries, balanceSeries.
+- KPI sparklines: 30 daily points ending at refDate (today, or month end for past months): balance at end of each day; income/expense/net as trailing 30-day sums (daily values would be mostly zeros). Categories rolled up to the top-level category, colors `chart-n` → `var(--chart-n)`, uncategorized slice `uncategorized`/"Sin categoría". Budget spent includes subcategories; sorted by % used.
+- DTO extended (backwards-compatible): `DashboardData.month`, `RecentTransaction.autoCategorized` (needed by DASH-005's ✦ marker).
+- GET /api/v1/dashboard (handler(), `?month=YYYY-MM` validated, invalid → 400). `useDashboard()` reads `month` via nuqs; also exports `fetchDashboard` and `dashboardQueryKey(filters)` (queryKeys.dashboard.summary({month}) or ({}) for the current month) — DASH-002's RSC prefetch must use the same key and call getDashboard directly.
+- Files: src/server/services/{dashboard.service.ts,dashboard.calc.ts}, src/app/api/v1/dashboard/route.ts, src/features/dashboard/{types.ts,hooks/use-dashboard.ts}, tests/unit/dashboard-calc.test.ts, src/server/AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest (35). curl on :3123: Oct 2026 income 2650 / expense 1790.06 and balance 14397.85 match psql; Alimentación 440/500 (88 %); ?month=2026-09 past month (projection = actuals), 2026-12 future, 2026-13 → 400.
+- **Learnings for future iterations:**
+  - Recent transactions include both legs of a transfer (each leg is a row); the UI may want to collapse by transferGroupId.
+  - Only MONTHLY budgets are returned; other periods need their own period window.
+  - initialBalance and recurring amounts are summed as base currency (no FX service yet; all seed accounts are in the base currency).
 ---

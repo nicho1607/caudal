@@ -56,7 +56,7 @@
       ],
       "dependsOn": ["DB-001"],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "Use a seeded PRNG so data is deterministic."
     },
     {

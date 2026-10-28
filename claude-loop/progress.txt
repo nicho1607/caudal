@@ -6,6 +6,7 @@
 - `postinstall` runs `prisma generate` (client in src/generated/prisma, gitignored).
 - Root layout already provides ThemeProvider (class), TooltipProvider and `<Toaster />` (sonner) — don't add them again in nested layouts.
 - DB: import `db` from `@/server/db` (only in src/server); types/enums from `@/generated/prisma/client`. Hand-written SQL migrations: `prisma migrate dev --create-only --name x`, edit, then `prisma migrate dev`. See prisma/AGENTS.md.
+- Demo data: `npm run db:seed` (idempotent, rerunnable). Demo user id = `DEMO_USER_ID` from `@/server/demo-user`. Deterministic randomness: `createRng(seed)` from `@/lib/prng`.
 
 ## 2026-10-28 - SETUP-001
 - Scaffolded Next.js 16.4.3 (App Router, src/, @/* alias, TS strict) via create-next-app in a temp dir and copied files in; existing docs/, prisma/, globals.css, lib/format.ts, features/dashboard/types.ts preserved.
@@ -34,4 +35,17 @@
   - Prisma's diff ignores expression indexes: a follow-up `migrate dev --create-only` produced an empty migration, so the trigram index won't be dropped later.
   - Scripts outside Next need `import "dotenv/config"`. tsx on Windows: dynamic import of an absolute path needs a `file:///` URL (spaces as %20). Always pass `< /dev/null` or avoid bare `cat >` with no stdin, or the shell hangs.
   - The search query must reuse the exact indexed expression in raw SQL to hit the GIN index.
+---
+
+## 2026-10-28 - DB-002
+- prisma/seed.ts: idempotent, deterministic demo seed (mulberry32 PRNG, seed 20261028), 6 months ending today (2026-04-28 → 2026-10-28). Demo user Lucía Martín (EUR, es-ES, Europe/Madrid). Accounts: BBVA Cuenta Online (CHECKING), Ahorro (SAVINGS), Visa BBVA (CREDIT_CARD, limit 3000), Efectivo (CASH). 8 parent / 18 child categories (income + expense, FIXED/VARIABLE, colors as chart tokens `chart-1`..`chart-6`, Lucide icon names). 23 payees with defaultCategoryId, 18 SYSTEM PAYEE/CONTAINS rules (priority 1000) with hitCount/lastHitAt; matching transactions are autoCategorized with categorizationRuleId. Transfers (two legs): monthly checking→savings 400 € (goal contributions), checking→cash ATM 100 €, Visa payment on day 5 = previous month's card balance. Recurring rules: Nómina (27th), Alquiler (1st), Netflix (15th). Budgets (monthly, from first seeded month): Alimentación 500 (88 % this month), Transporte 150, Ocio 250, Salud 60. Goal "Fondo de emergencia" 12 000 € linked to Ahorro, with 7 contributions.
+- src/server/demo-user.ts (DEMO_USER_ID, DEMO_USER_EMAIL), src/lib/prng.ts (createRng) + tests/unit/prng.test.ts.
+- Files: prisma/seed.ts, src/server/demo-user.ts, src/lib/prng.ts, tests/unit/prng.test.ts, prisma/AGENTS.md, src/server/AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest (8 tests), seed run twice with identical results; psql: 223 transactions, 19 transfer groups all summing to 0 with 2 legs, amountBase = amount everywhere, checking min running balance 405.57 €, cash never negative.
+- **Learnings for future iterations:**
+  - Alimentación is the budget above 80 % in the current month (the seed forces 85–95 %); the other three stay well below.
+  - Deleting a user with transactions fails (Transaction.account is Restrict) — delete transactions first.
+  - Credit-card transactions dated yesterday/today are seeded as PENDING; the rest CLEARED.
+  - The seed imports `db` via relative path (`../src/server/db`); tsx resolves the `@/` alias inside db.ts from tsconfig.json.
+  - In Git Bash, a bare `python -` may hang (Windows store stub) — use node for scripting.
 ---

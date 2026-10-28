@@ -3,8 +3,10 @@
 import { Button } from "@/components/ui/button";
 import { useDashboard } from "@/features/dashboard/hooks/use-dashboard";
 
+import { BudgetList } from "./budget-list";
 import { CashflowChart } from "./cashflow-chart";
 import { CategoryDonut } from "./category-donut";
+import { FinancialHealthPanel } from "./financial-health-panel";
 import { KpiStrip, KpiStripSkeleton } from "./kpi-strip";
 import { WidgetCard } from "./widget-card";
 
@@ -16,7 +18,7 @@ interface WidgetSlotProps {
 }
 
 /**
- * Hueco reservado para un widget aún no construido (DASH-004/005).
+ * Hueco reservado para un widget aún no construido (DASH-005).
  * Mantiene la rejilla del wireframe (docs §3) sin mostrar datos inventados.
  */
 function WidgetSlot({ slot, title, className }: WidgetSlotProps) {
@@ -53,9 +55,9 @@ export function DashboardView() {
           salud, presupuestos, movimientos y después los gráficos (docs §3). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         <CashflowChart className="order-4 lg:order-none lg:col-span-8" />
-        <WidgetSlot slot="financial-health" title="Salud financiera" className="order-1 lg:order-none lg:col-span-4" />
+        <FinancialHealthPanel className="order-1 lg:order-none lg:col-span-4" />
         <CategoryDonut className="order-5 lg:order-none lg:col-span-5" />
-        <WidgetSlot slot="budget-list" title="Presupuestos" className="order-2 lg:order-none lg:col-span-7" />
+        <BudgetList className="order-2 lg:order-none lg:col-span-7" />
         <WidgetSlot
           slot="recent-transactions"
           title="Últimos movimientos"

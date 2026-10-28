@@ -202,7 +202,7 @@
         "DASH-002"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "The pace marker is the signature element of the design — see docs §3."
     },
     {

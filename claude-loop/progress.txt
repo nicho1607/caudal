@@ -142,3 +142,13 @@
   - shadcn ToggleGroup's on-state (bg-muted) is hard to tell from hover in dark mode; add `text-muted-foreground data-[state=on]:text-foreground`.
   - Claude-in-Chrome screenshots occasionally time out right after a hover; a retry works (the page wasn't frozen).
 ---
+
+## 2026-10-28 - DASH-004
+- FinancialHealthPanel (dl): Cash flow neto (signed, income/expense by sign), Tasa de ahorro ("—" without income), fixed vs variable stacked bar (neutral ink tones, role=img with full aria-label, legend with amount and %), "Proyección a fin de mes ≈ net" + "Ingresos ≈ · Gastos ≈" while the month is in progress; "Mes cerrado" / "El mes aún no empieza" otherwise. Empty state "Aún no hay movimientos este mes." + [Añadir movimiento].
+- BudgetList → BudgetProgress: name, spent / limit (<Money>), % (⚠ warning icon at ≥ threshold, expense color at ≥ 100 %), 8 px bar with pace marker (2 px tick overhanging the bar, ring-card), muted "Vas por delante de tu ritmo" when above pace but below threshold; single legend "│ = ritmo esperado hoy (90%)" ("mes cerrado, 100%" for past months; hidden for future months). Empty state "Aún no tienes presupuestos." + link "Crear presupuesto" → /budgets.
+- Files: src/features/dashboard/{budget-pace.ts,components/budget-list.tsx,components/financial-health-panel.tsx,components/dashboard-view.tsx}, tests/unit/{budget-pace.test.ts,budget-progress.test.tsx}, AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest (14 new). Chrome :3123 light + dark at 1536 px, 375 px iframe (no horizontal scroll, health → budgets order); Alimentación 87 % shows warning fill + ⚠; ?month=2026-09 → legend "mes cerrado, 100%"; accessibility tree lists 4 progressbars with labels including "ritmo esperado hoy 90%"; progressbars are not focusable (non-interactive, correct); no console errors.
+- **Learnings for future iterations:**
+  - API for a future month (daysElapsed 0) still returns a non-zero projectedMonthEnd from recurring rules; gate projection UI with isProjectingMonth().
+  - Seeded October: pace 90 % (28/31), so no budget is in the "ahead" state; that tone is covered by tests/unit/budget-progress.test.tsx.
+---

@@ -129,3 +129,16 @@
   - Testing a breakpoint with an iframe: its border reduces the viewport (a 1024 px iframe with a 2 px border is < lg). Use outline instead.
   - HMR mid-edit (a const referenced before its declaration was saved) can leave stale errors plus a next-themes "script tag" console error; reload before judging the console.
 ---
+
+## 2026-10-28 - DASH-003
+- CashflowChart (Recharts ComposedChart): income/expense bars + net line, ToggleGroup Mes/Trimestre/Año (local state, outline, spacing 0). Current month (monthly range only, 0 < daysElapsed < daysInMonth): remaining income/expense to `health.projectedMonthEnd` stacked on the real bars as a hatched pattern (`*-subtle` fill + diagonal lines) with a dashed outline; net line becomes a dashed series from the previous month's net to the projected net (hollow dot). Legend row (Ingresos, Gastos, Neto, Proyección a fin de mes when shown). Tooltip: real values "a la fecha" + "Proyección a fin de mes ≈ …". Y axis compact money ("$4,5 M"), axis text muted-foreground, grid/axis `var(--border)`, maxBarSize 40.
+- CategoryDonut: PieChart 176 px, top 5 + "Otras" (a lone 6th category keeps its name), total in center (`<Money>`), legend with amount and % (`<1%` for tiny shares), slice tooltip. Empty state "Aún no hay gastos este mes." + [Añadir movimiento]; cashflow has its own empty state when the range has no movimientos.
+- Shared: WidgetCard/WidgetError (dashboard), components/empty-state.tsx, components/charts/{chart-tooltip.tsx,use-reduced-motion.ts}, lib/quick-add.ts (`requestQuickAdd()` dispatches window event `caudal:quick-add` for QA-001). Widgets call useDashboard() themselves and own skeleton/empty/error states. Animations disabled when prefers-reduced-motion.
+- Files: src/features/dashboard/{chart-data.ts,components/cashflow-chart.tsx,components/category-donut.tsx,components/widget-card.tsx,components/dashboard-view.tsx}, src/components/{empty-state.tsx,charts/chart-tooltip.tsx,charts/use-reduced-motion.ts}, src/lib/quick-add.ts, tests/unit/dashboard-chart-data.test.ts, AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint, vitest (52). Chrome on :3123: light + dark at 1536 px, 375 px iframe (no horizontal scroll, donut stacks above legend), Mes/Trimestre/Año toggle, Oct tooltip (a la fecha 4.500.000 / 3.670.200 / 829.800; proyección 4.500.000 / 3.842.137 / 657.863), ?month=2026-09 shows no projection, ?month=2026-01 shows both empty states and the CTA dispatches `caudal:quick-add` {type:"EXPENSE"}; no console errors.
+- **Learnings for future iterations:**
+  - Recharts 3 renders a `<defs>` child of ComposedChart, so `fill="url(#id)"` patterns work; CSS vars work in SVG fill/stroke attributes.
+  - With yearly range only one year has data, so bars got very wide — set `maxBarSize`.
+  - shadcn ToggleGroup's on-state (bg-muted) is hard to tell from hover in dark mode; add `text-muted-foreground data-[state=on]:text-foreground`.
+  - Claude-in-Chrome screenshots occasionally time out right after a hover; a retry works (the page wasn't frozen).
+---

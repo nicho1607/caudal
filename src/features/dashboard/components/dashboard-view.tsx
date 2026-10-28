@@ -2,9 +2,11 @@
 
 import { Button } from "@/components/ui/button";
 import { useDashboard } from "@/features/dashboard/hooks/use-dashboard";
-import { cn } from "@/lib/utils";
 
+import { CashflowChart } from "./cashflow-chart";
+import { CategoryDonut } from "./category-donut";
 import { KpiStrip, KpiStripSkeleton } from "./kpi-strip";
+import { WidgetCard } from "./widget-card";
 
 interface WidgetSlotProps {
   /** Identificador estable del hueco (`data-slot`), lo reemplaza la historia que lo implementa. */
@@ -14,23 +16,16 @@ interface WidgetSlotProps {
 }
 
 /**
- * Hueco reservado para un widget aún no construido (DASH-003/004/005).
+ * Hueco reservado para un widget aún no construido (DASH-004/005).
  * Mantiene la rejilla del wireframe (docs §3) sin mostrar datos inventados.
  */
 function WidgetSlot({ slot, title, className }: WidgetSlotProps) {
   return (
-    <section
-      data-slot={slot}
-      aria-labelledby={`slot-${slot}`}
-      className={cn("flex min-h-56 flex-col gap-3 rounded-lg border bg-card p-4 lg:p-5", className)}
-    >
-      <h2 id={`slot-${slot}`} className="text-[15px] leading-[22px] font-semibold">
-        {title}
-      </h2>
+    <WidgetCard slot={slot} title={title} className={className}>
       <div className="flex flex-1 items-center justify-center rounded-md border border-dashed">
         <p className="text-xs text-muted-foreground">Próximamente</p>
       </div>
-    </section>
+    </WidgetCard>
   );
 }
 
@@ -57,9 +52,9 @@ export function DashboardView() {
       {/* Rejilla de 12 columnas en ≥ lg; en una columna el orden es
           salud, presupuestos, movimientos y después los gráficos (docs §3). */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <WidgetSlot slot="cashflow-chart" title="Ingresos vs gastos" className="order-4 lg:order-none lg:col-span-8" />
+        <CashflowChart className="order-4 lg:order-none lg:col-span-8" />
         <WidgetSlot slot="financial-health" title="Salud financiera" className="order-1 lg:order-none lg:col-span-4" />
-        <WidgetSlot slot="category-donut" title="Gasto por categoría" className="order-5 lg:order-none lg:col-span-5" />
+        <CategoryDonut className="order-5 lg:order-none lg:col-span-5" />
         <WidgetSlot slot="budget-list" title="Presupuestos" className="order-2 lg:order-none lg:col-span-7" />
         <WidgetSlot
           slot="recent-transactions"

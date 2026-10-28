@@ -45,3 +45,10 @@ Gestor de gastos personales. Next.js 16 (App Router) + React 19 + TypeScript str
 - Sidebar becomes a left `Sheet` below `md`; page content should stay single-column-safe at 375 px.
 - Page titles: `<h1>` 15/22 semibold inside the page (the topbar has no h1). `PagePlaceholder` is only for sections not yet built.
 - Dev gotcha: editing files with `sed -i` (replace-by-rename) on this OneDrive folder can leave the dev server's SSR bundle stale → bogus hydration mismatches. Edit in place (Edit tool) or restart `next dev`.
+
+## Dashboard (`src/features/dashboard/`, `src/app/(app)/dashboard/page.tsx`)
+
+- The page (RSC) prefetches with `getQueryClient()` + `dashboardQueryKey(filters)` calling `getDashboard()` directly, then renders `DashboardView` inside `HydrationBoundary`. Key/filter helpers live in `features/dashboard/query.ts` (no "use client"): functions exported from a "use client" module reach the server as client references and cannot be called there.
+- `DashboardView` owns loading/error for the KPI strip and lays out the 12-col grid with `WidgetSlot` placeholders (`data-slot="cashflow-chart" | "financial-health" | "category-donut" | "budget-list" | "recent-transactions"`). A widget story replaces its slot in place and keeps its `order-N lg:order-none lg:col-span-N` classes (mobile order: health, budgets, recent, charts).
+- All amounts go through `<Money>` (`components/money.tsx`) or `formatMoney`, never raw — the API can return fractional values. Sparklines: `components/charts/sparkline.tsx` (SVG, `currentColor`, pass `text-income`/`text-expense`).
+- The KPI strip is a grid only at `xl`; below it is a scroll-snap carousel (with the 256 px sidebar, 4 segments don't fit 7–8 digit COP amounts between 768 and 1280 px).

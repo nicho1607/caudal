@@ -3,17 +3,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseAsString, useQueryState } from "nuqs";
 
+import { dashboardFilters, dashboardQueryKey, type DashboardFilters } from "@/features/dashboard/query";
 import type { DashboardData } from "@/features/dashboard/types";
-import { queryKeys } from "@/lib/query-keys";
 
-/** Filtros del dashboard: mismo shape que la query string (`month` ausente = mes en curso). */
-export interface DashboardFilters {
-  month?: string;
-}
-
-export function dashboardQueryKey(filters: DashboardFilters) {
-  return queryKeys.dashboard.summary(filters.month ? { month: filters.month } : {});
-}
+export { dashboardQueryKey, type DashboardFilters };
 
 export async function fetchDashboard(filters: DashboardFilters = {}): Promise<DashboardData> {
   const params = new URLSearchParams();
@@ -30,7 +23,7 @@ export async function fetchDashboard(filters: DashboardFilters = {}): Promise<Da
 /** Datos del dashboard para el mes de `?month=YYYY-MM` (nuqs, igual que el MonthSwitcher). */
 export function useDashboard() {
   const [month] = useQueryState("month", parseAsString);
-  const filters: DashboardFilters = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? { month } : {};
+  const filters = dashboardFilters(month);
   return useQuery({
     queryKey: dashboardQueryKey(filters),
     queryFn: () => fetchDashboard(filters),

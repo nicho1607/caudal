@@ -113,3 +113,19 @@
   - dashboard health.projectedMonthEnd can be fractional (e.g. 3842136.67); format it, don't display raw.
   - "Bancolombia Ahorros" truncates in the 256 px sidebar next to a 7-digit balance (truncate class works as intended).
 ---
+
+## 2026-10-28 - DASH-002
+- dashboard/page.tsx (RSC): reads `?month`, prefetches `getDashboard()` with `getQueryClient()` and `dashboardQueryKey()`, renders `DashboardView` in `HydrationBoundary` (no client refetch after hydration, checked via resource timing).
+- KpiStrip: one bordered container with `divide-x`, four segments (Saldo total 32/36 −0.02em first and wider; Ingresos, Gastos, Ahorro neto 22/28). Each: label, `<Money>`, delta vs previous month ("+5,3% vs sept") colored by favourability (expense up = expense color, income/balance/savings up = income color, 0 = muted, no base = "Sin datos de …"), SVG sparkline 1.5 px `non-scaling-stroke` + flat 8 % fill in semantic color (balance in ink, savings income/expense by sign). Ahorro neto shows "Tasa 18,4%" next to its label. Skeleton with the same shape; error state "No se pudo cargar. [Reintentar]".
+- Carousel (scroll-snap, 80 % / 45 % segments, hidden scrollbar) below xl, grid `1.35fr 1fr 1fr 1fr` at xl. Below the strip: 12-col grid of named `WidgetSlot` placeholders (cashflow-chart 8 / financial-health 4, category-donut 5 / budget-list 7, recent-transactions 12), stacked below lg in docs §3 order.
+- Sidebar accounts: name on its own line (truncate + title) with the balance below in muted 12 px tabular nums — "Bancolombia Ahorros" is no longer truncated.
+- Moved `dashboardQueryKey`/`DashboardFilters` + new `dashboardFilters()` into `features/dashboard/query.ts` (hook re-exports them).
+- Files: src/app/(app)/dashboard/page.tsx, src/features/dashboard/{query.ts,hooks/use-dashboard.ts,components/kpi-strip.tsx,components/dashboard-view.tsx}, src/components/{money.tsx,charts/sparkline.tsx,shell/sidebar-content.tsx}, tests/unit/kpi-strip.test.tsx, AGENTS.md, claude-loop/{prd.json,progress.txt}
+- Verified: typecheck, eslint (changed files), vitest (43). Chrome on :3123: light + dark at 1536 px, 1028 px iframe, 375 px iframe in dark (scrollWidth = clientWidth, carousel snaps per segment, mobile slot order health → budgets → recent → charts), no console errors after a clean reload.
+- **Learnings for future iterations:**
+  - Don't import functions from a "use client" module into an RSC (they become client references); put shared key builders in a plain module.
+  - With the 256 px sidebar, the 4-up KPI grid only fits from xl (at 1024 px the 32 px balance got clipped and the sparklines were ~40 px wide); the AC's "< 768 px carousel" is a lower bound.
+  - es-CO `formatPercent` has no space before % ("5,3%"); normalize in tests.
+  - Testing a breakpoint with an iframe: its border reduces the viewport (a 1024 px iframe with a 2 px border is < lg). Use outline instead.
+  - HMR mid-edit (a const referenced before its declaration was saved) can leave stale errors plus a next-themes "script tag" console error; reload before judging the console.
+---

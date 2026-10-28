@@ -83,24 +83,25 @@ export function SidebarContent({ accounts, locale, onNavigate }: SidebarContentP
         ) : (
           <ul className="flex flex-col">
             {accounts.map((account) => (
-              <li
-                key={account.id}
-                className="flex h-8 items-center justify-between gap-2 px-2 text-[13px] leading-5"
-              >
-                <span className="flex min-w-0 items-center gap-2">
-                  <span
-                    aria-hidden
-                    className="size-1.5 shrink-0 rounded-full bg-muted-foreground"
-                    style={
-                      account.color && ACCOUNT_DOT.test(account.color)
-                        ? { backgroundColor: `var(--${account.color})` }
-                        : undefined
-                    }
-                  />
-                  <span className="truncate">{account.name}</span>
-                </span>
-                <span className="num shrink-0 text-muted-foreground">
-                  {formatMoney(account.balance, { currency: account.currency, locale })}
+              // Nombre en su propia línea y saldo debajo: los saldos de 7+ cifras
+              // no dejan sitio para nombres como "Bancolombia Ahorros" en 256 px.
+              <li key={account.id} className="flex gap-2 px-2 py-1.5">
+                <span
+                  aria-hidden
+                  className="mt-[7px] size-1.5 shrink-0 rounded-full bg-muted-foreground"
+                  style={
+                    account.color && ACCOUNT_DOT.test(account.color)
+                      ? { backgroundColor: `var(--${account.color})` }
+                      : undefined
+                  }
+                />
+                <span className="flex min-w-0 flex-col">
+                  <span className="truncate text-[13px] leading-5" title={account.name}>
+                    {account.name}
+                  </span>
+                  <span className="num text-xs leading-4 text-muted-foreground">
+                    {formatMoney(account.balance, { currency: account.currency, locale })}
+                  </span>
                 </span>
               </li>
             ))}

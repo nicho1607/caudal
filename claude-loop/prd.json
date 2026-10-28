@@ -165,7 +165,7 @@
         "SHELL-001"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "Money formatting (COP, grouping) is already handled by LOC-001."
     },
     {

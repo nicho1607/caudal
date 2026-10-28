@@ -1,0 +1,435 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// Ledger — Gestor de Gastos Personales
+// PostgreSQL (Supabase) + Prisma ORM
+//
+// Convenciones:
+// - Importes: Decimal(19,4). Nunca Float para dinero.
+// - Signo: amount > 0 = entra dinero a la cuenta, amount < 0 = sale.
+//   Balance de cuenta = initialBalance + SUM(amount) de transacciones no borradas.
+// - Transferencias: dos "patas" (legs) con el mismo transferGroupId,
+//   una negativa en origen y una positiva en destino (soporta multimoneda).
+// - amountBase: importe convertido a la moneda base del usuario al momento
+//   del registro (para reportes agregados sin recalcular FX).
+// - Soft delete (deletedAt) para permitir "Deshacer" en toasts.
+// - Toda consulta se filtra por userId en la capa de servicios.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Prisma 7: generator "prisma-client" con output explícito; la URL de
+// conexión vive en prisma.config.ts y el runtime usa @prisma/adapter-pg.
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────────────────────────
+
+enum AccountType {
+  CASH
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  INVESTMENT
+  LOAN
+  OTHER
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+  TRANSFER
+}
+
+enum TransactionStatus {
+  PENDING
+  CLEARED
+  RECONCILED
+}
+
+enum CategoryKind {
+  INCOME
+  EXPENSE
+}
+
+enum CostNature {
+  FIXED    // alquiler, suscripciones, seguros
+  VARIABLE // supermercado, ocio
+}
+
+enum Frequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+  YEARLY
+}
+
+enum BudgetPeriod {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum RuleField {
+  PAYEE
+  DESCRIPTION
+}
+
+enum RuleMatch {
+  CONTAINS
+  EQUALS
+  STARTS_WITH
+  REGEX
+}
+
+enum RuleSource {
+  USER    // creada explícitamente
+  LEARNED // inferida de correcciones del usuario
+  SYSTEM  // reglas semilla (Netflix → Suscripciones, etc.)
+}
+
+enum GoalStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+// ─── Usuario ─────────────────────────────────────────────────────────────────
+
+model User {
+  // Igual al id de auth.users de Supabase Auth.
+  id           String   @id @db.Uuid
+  email        String   @unique
+  name         String?
+  avatarUrl    String?
+  baseCurrency String   @default("USD") @db.Char(3) // ISO 4217
+  locale       String   @default("es-ES")
+  timezone     String   @default("UTC")
+  weekStartsOn Int      @default(1) @db.SmallInt // 0 = domingo, 1 = lunes
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  accounts            Account[]
+  categories          Category[]
+  transactions        Transaction[]
+  tags                Tag[]
+  payees              Payee[]
+  budgets             Budget[]
+  goals               SavingsGoal[]
+  recurringRules      RecurringRule[]
+  categorizationRules CategorizationRule[]
+
+  @@map("users")
+}
+
+// ─── Cuentas / Carteras ──────────────────────────────────────────────────────
+
+model Account {
+  id             String      @id @default(cuid())
+  userId         String      @db.Uuid
+  name           String
+  type           AccountType
+  currency       String      @db.Char(3)
+  initialBalance Decimal     @default(0) @db.Decimal(19, 4)
+  creditLimit    Decimal?    @db.Decimal(19, 4) // sólo CREDIT_CARD
+  institution    String?
+  last4          String?     @db.VarChar(4)
+  color          String?     // token de color para UI
+  icon           String?     // nombre de icono Lucide
+  includeInNetWorth Boolean  @default(true)
+  sortOrder      Int         @default(0)
+  archivedAt     DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions   Transaction[]
+  recurringRules RecurringRule[]
+  goals          SavingsGoal[]
+
+  @@index([userId, archivedAt])
+  @@map("accounts")
+}
+
+// ─── Categorías (jerárquicas, 2 niveles recomendado) ─────────────────────────
+
+model Category {
+  id         String       @id @default(cuid())
+  userId     String       @db.Uuid
+  parentId   String?
+  name       String
+  kind       CategoryKind
+  nature     CostNature   @default(VARIABLE)
+  color      String?
+  icon       String?
+  sortOrder  Int          @default(0)
+  archivedAt DateTime?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  user                User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent              Category?            @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children            Category[]           @relation("CategoryTree")
+  transactions        Transaction[]
+  budgets             Budget[]
+  recurringRules      RecurringRule[]
+  categorizationRules CategorizationRule[]
+  payeeDefaults       Payee[]
+
+  @@unique([userId, parentId, name])
+  @@index([userId, kind])
+  @@map("categories")
+}
+
+// ─── Comercios / Beneficiarios (base para auto-categorización) ───────────────
+
+model Payee {
+  id                String   @id @default(cuid())
+  userId            String   @db.Uuid
+  name              String   // "Mercadona"
+  normalizedName    String   // "mercadona" (lowercase, sin acentos ni sufijos tipo "S.A.")
+  defaultCategoryId String?
+  logoUrl           String?
+  createdAt         DateTime @default(now())
+
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  defaultCategory Category?     @relation(fields: [defaultCategoryId], references: [id], onDelete: SetNull)
+  transactions    Transaction[]
+
+  @@unique([userId, normalizedName])
+  @@map("payees")
+}
+
+// ─── Transacciones ───────────────────────────────────────────────────────────
+
+model Transaction {
+  id              String            @id @default(cuid())
+  userId          String            @db.Uuid
+  accountId       String
+  categoryId      String?           // null en transferencias
+  payeeId         String?
+  recurringRuleId String?
+  transferGroupId String?           // une las dos patas de una transferencia
+
+  type        TransactionType
+  status      TransactionStatus @default(CLEARED)
+  date        DateTime          @db.Date
+  amount      Decimal           @db.Decimal(19, 4) // en moneda de la cuenta, con signo
+  currency    String            @db.Char(3)
+  amountBase  Decimal           @db.Decimal(19, 4) // en moneda base del usuario
+  fxRate      Decimal           @default(1) @db.Decimal(19, 8)
+  description String?
+  notes       String?
+
+  // Trazabilidad de la auto-categorización
+  autoCategorized       Boolean @default(false)
+  categorizationRuleId  String?
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account            Account             @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  category           Category?           @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  payee              Payee?              @relation(fields: [payeeId], references: [id], onDelete: SetNull)
+  recurringRule      RecurringRule?      @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
+  categorizationRule CategorizationRule? @relation(fields: [categorizationRuleId], references: [id], onDelete: SetNull)
+  tags               TransactionTag[]
+  goalContributions  GoalContribution[]
+
+  @@index([userId, date(sort: Desc)])
+  @@index([userId, categoryId, date])
+  @@index([accountId, date])
+  @@index([transferGroupId])
+  @@index([userId, deletedAt])
+  @@map("transactions")
+}
+
+// Búsqueda en tiempo real: añadir en una migración SQL manual
+//   CREATE EXTENSION IF NOT EXISTS pg_trgm;
+//   CREATE INDEX transactions_search_trgm ON transactions
+//     USING gin ((coalesce(description,'') || ' ' || coalesce(notes,'')) gin_trgm_ops);
+
+// ─── Etiquetas (m:n explícita) ───────────────────────────────────────────────
+
+model Tag {
+  id        String   @id @default(cuid())
+  userId    String   @db.Uuid
+  name      String
+  color     String?
+  createdAt DateTime @default(now())
+
+  user         User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions TransactionTag[]
+
+  @@unique([userId, name])
+  @@map("tags")
+}
+
+model TransactionTag {
+  transactionId String
+  tagId         String
+
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  tag         Tag         @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([transactionId, tagId])
+  @@index([tagId])
+  @@map("transaction_tags")
+}
+
+// ─── Transacciones recurrentes (plantilla + motor de generación) ─────────────
+
+model RecurringRule {
+  id          String          @id @default(cuid())
+  userId      String          @db.Uuid
+  accountId   String
+  categoryId  String?
+  name        String          // "Netflix", "Nómina"
+  type        TransactionType
+  amount      Decimal         @db.Decimal(19, 4) // con signo, igual que Transaction
+  currency    String          @db.Char(3)
+  description String?
+
+  frequency  Frequency
+  interval   Int       @default(1)   // cada N periodos
+  dayOfMonth Int?      @db.SmallInt  // 1..31 (se ajusta al último día si no existe)
+  dayOfWeek  Int?      @db.SmallInt  // 0..6
+  startDate  DateTime  @db.Date
+  endDate    DateTime? @db.Date
+  nextRunAt  DateTime  @db.Date
+  autoPost   Boolean   @default(true) // false = crea en PENDING para confirmar
+  isActive   Boolean   @default(true)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  category     Category?     @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  transactions Transaction[]
+
+  @@index([isActive, nextRunAt]) // consulta del cron
+  @@index([userId])
+  @@map("recurring_rules")
+}
+
+// ─── Presupuestos ────────────────────────────────────────────────────────────
+
+model Budget {
+  id             String       @id @default(cuid())
+  userId         String       @db.Uuid
+  categoryId     String       // incluye subcategorías al calcular el consumo
+  period         BudgetPeriod @default(MONTHLY)
+  amount         Decimal      @db.Decimal(19, 4) // en moneda base
+  alertThreshold Decimal      @default(0.80) @db.Decimal(3, 2) // 0.80 = 80 %
+  rollover       Boolean      @default(false) // arrastra sobrante al siguiente periodo
+  startDate      DateTime     @db.Date
+  endDate        DateTime?    @db.Date
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  alerts   BudgetAlert[]
+
+  @@unique([userId, categoryId, period, startDate])
+  @@map("budgets")
+}
+
+// Registro de alertas emitidas (evita notificar dos veces el mismo umbral/periodo)
+model BudgetAlert {
+  id          String   @id @default(cuid())
+  budgetId    String
+  periodStart DateTime @db.Date
+  threshold   Decimal  @db.Decimal(3, 2) // 0.80, 1.00
+  triggeredAt DateTime @default(now())
+  readAt      DateTime?
+
+  budget Budget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetId, periodStart, threshold])
+  @@map("budget_alerts")
+}
+
+// ─── Metas de ahorro ─────────────────────────────────────────────────────────
+
+model SavingsGoal {
+  id               String     @id @default(cuid())
+  userId           String     @db.Uuid
+  linkedAccountId  String?    // si se vincula, el progreso = balance de la cuenta
+  name             String
+  targetAmount     Decimal    @db.Decimal(19, 4)
+  currency         String     @db.Char(3)
+  targetDate       DateTime?  @db.Date
+  monthlyPlan      Decimal?   @db.Decimal(19, 4) // aporte mensual planificado
+  status           GoalStatus @default(ACTIVE)
+  color            String?
+  icon             String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  linkedAccount Account?           @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)
+  contributions GoalContribution[]
+
+  @@index([userId, status])
+  @@map("savings_goals")
+}
+
+model GoalContribution {
+  id            String   @id @default(cuid())
+  goalId        String
+  transactionId String?  // opcional: aporte respaldado por una transacción real
+  amount        Decimal  @db.Decimal(19, 4)
+  date          DateTime @db.Date
+  note          String?
+  createdAt     DateTime @default(now())
+
+  goal        SavingsGoal  @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([goalId, date])
+  @@map("goal_contributions")
+}
+
+// ─── Motor de auto-categorización ────────────────────────────────────────────
+
+model CategorizationRule {
+  id         String     @id @default(cuid())
+  userId     String     @db.Uuid
+  categoryId String
+  field      RuleField  @default(PAYEE)
+  match      RuleMatch  @default(CONTAINS)
+  pattern    String     // normalizado (lowercase, sin acentos) salvo REGEX
+  priority   Int        @default(100) // menor = se evalúa antes
+  source     RuleSource @default(USER)
+  hitCount   Int        @default(0)
+  lastHitAt  DateTime?
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     Category      @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@index([userId, isActive, priority])
+  @@map("categorization_rules")
+}
+
+// ─── Tipos de cambio (multimoneda) ───────────────────────────────────────────
+
+model ExchangeRate {
+  base   String   @db.Char(3)
+  quote  String   @db.Char(3)
+  date   DateTime @db.Date
+  rate   Decimal  @db.Decimal(19, 8)
+  source String   @default("ecb")
+
+  @@id([base, quote, date])
+  @@map("exchange_rates")
+}

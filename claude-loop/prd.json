@@ -1,0 +1,285 @@
+{
+  "project": "Caudal",
+  "branchName": "feat/mvp-foundations",
+  "description": "Fases 0-1 del roadmap: fundaciones + MVP del gestor de gastos (dashboard, transacciones, Quick Add, cuentas, categorías). Diseño y arquitectura de referencia en docs/ARQUITECTURA.md; modelo de datos en prisma/schema.prisma; tokens en src/app/globals.css. En el MVP la auth es un usuario demo (getSessionUser devuelve el usuario del seed); Supabase Auth llega en la fase 4.",
+  "userStories": [
+    {
+      "id": "SETUP-001",
+      "title": "Scaffold Next.js app with Tailwind v4, shadcn/ui and tooling",
+      "description": "As a developer, I need the base Next.js project so every later story has a working build, typecheck and test runner.",
+      "acceptanceCriteria": [
+        "Next.js (App Router, latest stable) + React + TypeScript strict, src/ dir, import alias @/*; scaffold in place WITHOUT deleting existing files (docs/, prisma/, prisma.config.ts, claude-loop/, src/app/globals.css, src/lib/format.ts, src/features/dashboard/types.ts)",
+        "Tailwind CSS v4 + tw-animate-css; existing src/app/globals.css is kept as the global stylesheet",
+        "shadcn/ui initialised (components.json, src/lib/utils.ts with cn) and components added: button, card, dialog, sheet, command, dropdown-menu, input, label, select, tabs, badge, skeleton, separator, tooltip, popover, calendar, table, sonner, progress, scroll-area, toggle-group",
+        "Dependencies installed up front: lucide-react, recharts, @tanstack/react-query, @tanstack/react-table, nuqs, zod, react-hook-form, @hookform/resolvers, date-fns, next-themes, sonner, prisma@7, @prisma/client@7, @prisma/adapter-pg, pg, dotenv, tsx; dev: vitest, @vitejs/plugin-react, @testing-library/react, jsdom, @types/pg",
+        "Root layout loads Geist + Geist Mono via next/font, wraps app in ThemeProvider (class strategy), sets lang=es",
+        "package.json scripts: dev, build, typecheck (tsc --noEmit), lint, test (vitest run), db:migrate, db:seed",
+        "vitest.config.ts with @ alias and jsdom; one passing test for src/lib/format.ts (formatMoney negative uses U+2212, signed adds +, relativeChange returns null on 0)",
+        ".gitignore covers node_modules, .next, .env*, !.env.example, src/generated; .env.example documents DATABASE_URL and DIRECT_URL",
+        "Root AGENTS.md documenting folder conventions from docs/ARQUITECTURA.md §1",
+        "npm run typecheck and npm test pass"
+      ],
+      "dependsOn": [],
+      "priority": 1,
+      "passes": false,
+      "notes": "Use npx create-next-app in a temp dir and copy over, or init manually, so existing files survive. Windows + Git Bash environment."
+    },
+    {
+      "id": "DB-001",
+      "title": "Prisma 7 client, initial migration and search index",
+      "description": "As a developer, I need the database schema applied and a shared Prisma client so services can query data.",
+      "acceptanceCriteria": [
+        "src/server/db.ts exports a PrismaClient singleton (globalThis cache in dev) using @prisma/adapter-pg with DATABASE_URL, importing from @/generated/prisma/client",
+        "npx prisma validate passes; npx prisma generate outputs to src/generated/prisma",
+        "Initial migration created and applied (prisma migrate dev --name init) against the local Postgres in .env",
+        "Second migration enables pg_trgm and creates the GIN trigram index on transactions (description || notes) as noted in schema.prisma",
+        "Typecheck passes"
+      ],
+      "dependsOn": ["SETUP-001"],
+      "priority": 2,
+      "passes": false,
+      "notes": "Read .claude skill prisma-upgrade-v7 references (driver-adapters, prisma-config) if unsure. If .env is missing or DB unreachable, return a blocker — do not invent credentials."
+    },
+    {
+      "id": "DB-002",
+      "title": "Seed demo user with six months of realistic data",
+      "description": "As a developer, I need realistic demo data so the dashboard and tables can be built and verified against real queries.",
+      "acceptanceCriteria": [
+        "prisma/seed.ts is idempotent (deletes and recreates the demo user's data); runnable via npm run db:seed",
+        "Demo user (fixed uuid exported from src/server/demo-user.ts, baseCurrency EUR, locale es-ES)",
+        "Accounts: checking (BBVA), savings, credit card (Visa, creditLimit), cash",
+        "Two-level categories for income and expense with nature FIXED/VARIABLE and chart colors",
+        "~6 months of transactions ending today: monthly salary, rent, utilities, subscriptions, groceries, transport, leisure, plus monthly transfers checking→savings as two legs sharing transferGroupId; amountBase = amount (single currency)",
+        "Payees with defaultCategoryId; SYSTEM categorization rules (Netflix, Spotify, Uber, Mercadona, etc.)",
+        "Budgets (monthly) for 4 expense categories, one of them above 80 % this month; recurring rules for salary, rent, Netflix; one savings goal with contributions",
+        "Typecheck passes; seed runs without errors"
+      ],
+      "dependsOn": ["DB-001"],
+      "priority": 3,
+      "passes": false,
+      "notes": "Use a seeded PRNG so data is deterministic."
+    },
+    {
+      "id": "CORE-001",
+      "title": "Server HTTP helper, session user and React Query provider",
+      "description": "As a developer, I need shared plumbing for API routes and client data fetching.",
+      "acceptanceCriteria": [
+        "src/server/auth.ts getSessionUser() returns the demo user (MVP) — single place to swap for Supabase later",
+        "src/server/http.ts handler() wraps Route Handlers: resolves user, parses body/query with a zod schema, maps ZodError→400, NotFoundError→404, unknown→500 JSON {error}",
+        "src/lib/query-keys.ts central query key factory",
+        "QueryProvider (client) with sensible staleTime, mounted in root layout alongside Toaster (sonner) and NuqsAdapter",
+        "Unit test for handler error mapping",
+        "Typecheck and tests pass"
+      ],
+      "dependsOn": ["SETUP-001"],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "SHELL-001",
+      "title": "App shell: sidebar, topbar and theme toggle",
+      "description": "As a user, I want a calm, consistent shell so I can move between sections quickly.",
+      "acceptanceCriteria": [
+        "Route group src/app/(app) with layout: left sidebar (Resumen, Movimientos, Cuentas, Presupuestos, Metas, Ajustes with Lucide icons, active state) and account list; topbar with month switcher, search trigger showing ⌘K hint and primary 'Nueva' button showing N hint (buttons can be inert until QA-001)",
+        "Placeholder pages for each section; / redirects to /dashboard",
+        "Follows docs/ARQUITECTURA.md §3: hairline borders not shadows, no ALL-CAPS labels, sentence case, Geist",
+        "Light/dark toggle via next-themes; both themes legible",
+        "Below 768 px sidebar becomes a Sheet drawer; no horizontal scroll at 375 px",
+        "Visible keyboard focus on all nav items",
+        "Typecheck passes",
+        "Verify in browser (light, dark, 375 px) and take screenshots"
+      ],
+      "dependsOn": ["SETUP-001"],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DASH-001",
+      "title": "Dashboard service and GET /api/v1/dashboard",
+      "description": "As a developer, I need one endpoint that returns all dashboard aggregates as DashboardData.",
+      "acceptanceCriteria": [
+        "src/server/services/dashboard.service.ts returns DashboardData (src/features/dashboard/types.ts) for a userId and month",
+        "Pure, unit-tested helpers: savingsRate, month-end projection (formula in docs §1), budget pace (daysElapsed/daysInMonth), cashflow bucketing monthly/quarterly/yearly",
+        "Transfers excluded from income/expense totals; soft-deleted rows excluded; totals use amountBase",
+        "Sparklines: last 30 daily points per KPI",
+        "src/app/api/v1/dashboard/route.ts uses handler(); ?month=YYYY-MM optional",
+        "useDashboard hook in src/features/dashboard/hooks",
+        "Typecheck and tests pass; curl against dev server returns seeded data"
+      ],
+      "dependsOn": ["DB-002", "CORE-001"],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DASH-002",
+      "title": "Dashboard page with KPI strip and sparklines",
+      "description": "As a user, I want to see my balance and this month's income, expenses and savings at a glance.",
+      "acceptanceCriteria": [
+        "dashboard/page.tsx (RSC) prefetches the dashboard query and renders DashboardView inside HydrationBoundary",
+        "KpiStrip: ONE bordered container split by vertical dividers into 4 segments (not 4 separate cards); Saldo total is larger (32px) and first",
+        "Each segment: label, value with tabular nums via <Money>, delta vs previous month colored by favourability (expense up = expense color), 1.5px sparkline in semantic color with ~8 % fill, no gradient",
+        "Skeleton loading state matching final shape; horizontal scroll-snap carousel below 768 px",
+        "Typecheck passes",
+        "Verify in browser with seeded data (light + dark + mobile) and take screenshots"
+      ],
+      "dependsOn": ["DASH-001", "SHELL-001"],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DASH-003",
+      "title": "Income vs expense chart with projection, and category donut",
+      "description": "As a user, I want to compare income and expenses over time and see where my money goes.",
+      "acceptanceCriteria": [
+        "CashflowChart: Recharts ComposedChart, income/expense bars + net line, ToggleGroup Mes/Trimestre/Año; current month shows projected values as dashed/hatched segment to month end",
+        "Custom tooltip with formatted money; axis text uses muted-foreground; colors from CSS tokens (works in dark mode)",
+        "CategoryDonut: top 5 categories + 'Otras', total in center, legend with amount and %",
+        "Empty state when no expenses this month with CTA 'Añadir movimiento'",
+        "Typecheck passes",
+        "Verify in browser and take screenshots"
+      ],
+      "dependsOn": ["DASH-002"],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DASH-004",
+      "title": "Financial health panel and budget bars with pace marker",
+      "description": "As a user, I want to know if I'm on track this month before I overspend.",
+      "acceptanceCriteria": [
+        "FinancialHealthPanel: net cash flow, savings rate, fixed vs variable stacked bar, projected month-end net",
+        "BudgetProgress: bar with a thin vertical pace marker at daysElapsed/daysInMonth; warning color at >= alertThreshold, expense color at >= 100 %; shows spent/limit and %",
+        "Accessible: progressbar role with aria-valuenow and an aria-label that mentions the expected pace",
+        "Typecheck passes",
+        "Verify in browser (seeded budget above 80 % shows warning) and take screenshots"
+      ],
+      "dependsOn": ["DASH-002"],
+      "priority": 9,
+      "passes": false,
+      "notes": "The pace marker is the signature element of the design — see docs §3."
+    },
+    {
+      "id": "CAT-001",
+      "title": "Auto-categorization service",
+      "description": "As a user, I want new transactions categorized automatically from the merchant or description.",
+      "acceptanceCriteria": [
+        "src/server/services/categorization.service.ts: normalize() (lowercase, strip accents, strip suffixes like S.A., S.L., *1234, trailing digits) and suggest({payee, description}) following the order in docs §1",
+        "Supports CONTAINS, EQUALS, STARTS_WITH, REGEX (invalid regex is skipped, not thrown); increments hitCount/lastHitAt on apply",
+        "recordCorrection(): after 2 corrections of the same payee to the same category, create a LEARNED rule",
+        "GET /api/v1/categorize/suggest?payee=&description= returns {categoryId, ruleId, source} or null",
+        "Unit tests for normalize and rule ordering (pure matching function separated from DB)",
+        "Typecheck and tests pass"
+      ],
+      "dependsOn": ["DB-002", "CORE-001"],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TXN-001",
+      "title": "Transactions API with filters, cursor pagination and soft delete",
+      "description": "As a developer, I need CRUD endpoints for transactions that the table and Quick Add use.",
+      "acceptanceCriteria": [
+        "src/features/transactions/schemas.ts zod schemas shared with forms",
+        "GET /api/v1/transactions: filters dateFrom, dateTo, accountIds, categoryIds, tagIds, types, q (trigram/ILIKE search), cursor pagination, sort by date|amount",
+        "POST creates INCOME/EXPENSE (sign applied server-side from type) and TRANSFER (two legs, same transferGroupId, inside $transaction); auto-categorizes when categoryId absent",
+        "PATCH /[id] updates; DELETE /[id] sets deletedAt; POST /[id]/restore clears it (transfer legs move together)",
+        "All queries scoped by userId; accessing another user's id returns 404",
+        "Service-level tests for sign handling and transfer legs",
+        "Typecheck and tests pass"
+      ],
+      "dependsOn": ["CAT-001"],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "DASH-005",
+      "title": "Recent transactions widget with row actions and undo",
+      "description": "As a user, I want to review and fix my latest transactions from the dashboard.",
+      "acceptanceCriteria": [
+        "RecentTransactions: last 8 rows with date, payee/description, category (✦ marker if autoCategorized), account, signed amount in semantic color with tabular nums",
+        "Row DropdownMenu: Editar (opens Sheet with form), Duplicar, Eliminar → optimistic removal + toast 'Movimiento eliminado' with Deshacer calling restore",
+        "Dashboard queries invalidate after mutations",
+        "Empty state copy + CTA",
+        "Typecheck passes",
+        "Verify in browser: delete then undo restores the row; take screenshots"
+      ],
+      "dependsOn": ["DASH-002", "TXN-001"],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "TXN-002",
+      "title": "Transactions page: data table with filters and live search",
+      "description": "As a user, I want to filter and search all my transactions quickly.",
+      "acceptanceCriteria": [
+        "TanStack Table with columns date, description, category, account, tags, amount; sortable; 40px rows; amounts right-aligned in Geist Mono tabular",
+        "Toolbar: debounced search (250 ms), date range picker, faceted filters for type/account/category/tag, reset; all filter state in URL via nuqs",
+        "Server cursor pagination with 'Cargar más' or page controls; row actions reuse DASH-005 actions",
+        "Empty state distinguishes 'no transactions yet' from 'no results for these filters' (with 'Limpiar filtros')",
+        "Typecheck passes",
+        "Verify in browser: filter + search + reload keeps filters; take screenshots"
+      ],
+      "dependsOn": ["DASH-005"],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "QA-001",
+      "title": "Quick Add dialog, command palette and keyboard shortcuts",
+      "description": "As a user, I want to add a transaction in seconds without leaving the current view.",
+      "acceptanceCriteria": [
+        "use-hotkeys: N opens Quick Add, Cmd/Ctrl+K opens command palette (shadcn Command) — ignored while typing in inputs/textareas/contenteditable",
+        "src/features/quick-add/parse.ts parses free text like 'café 3,50 visa ayer #trabajo' into {amount, description, accountAlias, date, tags, type}; comma and dot decimals; '+' prefix = income; unit-tested",
+        "Form (react-hook-form + zod) prefilled from parse; live category suggestion from /categorize/suggest as payee is typed",
+        "Enter saves and closes; Cmd/Ctrl+Enter saves and keeps open; optimistic insert; toast 'Movimiento guardado' with Deshacer",
+        "Topbar 'Nueva' button and palette action open the same dialog",
+        "Typecheck and tests pass",
+        "Verify in browser using only the keyboard; take screenshots"
+      ],
+      "dependsOn": ["TXN-001", "SHELL-001"],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "ACC-001",
+      "title": "Accounts page with balances and CRUD",
+      "description": "As a user, I want to manage my accounts and see each balance.",
+      "acceptanceCriteria": [
+        "API /api/v1/accounts GET (with computed balance = initialBalance + Σ amount) / POST / PATCH / archive",
+        "Accounts page grouped by type; credit cards show used vs creditLimit",
+        "Create/edit in Sheet; archive with undo toast; empty state with CTA",
+        "Typecheck passes",
+        "Verify in browser; take screenshots"
+      ],
+      "dependsOn": ["TXN-001", "SHELL-001"],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "CAT-002",
+      "title": "Categories and rules management in settings",
+      "description": "As a user, I want to organise categories and control the auto-categorization rules.",
+      "acceptanceCriteria": [
+        "API /api/v1/categories CRUD (two levels, nature FIXED/VARIABLE, color from chart tokens, Lucide icon)",
+        "Settings page section listing categories as a tree and categorization rules (pattern, field, match, category, source, hitCount) with create/edit/disable",
+        "Typecheck passes",
+        "Verify in browser; take screenshots"
+      ],
+      "dependsOn": ["CAT-001", "SHELL-001"],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
